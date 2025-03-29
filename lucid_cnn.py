@@ -31,17 +31,16 @@ np.random.seed(SEED)
 rn.seed(SEED)
 config = tf.compat.v1.ConfigProto(inter_op_parallelism_threads=1)
 
-from tensorflow.keras.optimizers import Adam,SGD
 from tensorflow.keras.layers import Input, Dense, Activation, Flatten, Conv2D
 from tensorflow.keras.layers import Dropout, GlobalMaxPooling2D
-from tensorflow.keras.models import Model, Sequential, load_model, save_model
+from tensorflow.keras.models import Model, load_model
 from sklearn.metrics import f1_score, accuracy_score, confusion_matrix
 from sklearn.utils import shuffle
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from scikeras.wrappers import KerasClassifier
 from tensorflow.keras import regularizers
 
-from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
+from sklearn.model_selection import GridSearchCV
 from lucid_dataset_parser import *
 
 import tensorflow.keras.backend as K
