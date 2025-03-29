@@ -38,7 +38,9 @@ from tensorflow.keras.models import Model, Sequential, load_model, save_model
 from sklearn.metrics import f1_score, accuracy_score, confusion_matrix
 from sklearn.utils import shuffle
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
-from tensorflow.keras.wrappers.scikit_learn import KerasClassifier
+from scikeras.wrappers import KerasClassifier
+from tensorflow.keras import regularizers
+
 from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 from lucid_dataset_parser import *
 
@@ -58,36 +60,52 @@ PREDICT_HEADER = ['Model', 'Time', 'Packets', 'Samples', 'DDOS%', 'Accuracy', 'F
 PATIENCE = 10
 DEFAULT_EPOCHS = 1000
 hyperparamters = {
-    "learning_rate": [0.1,0.01],
+    "optimizer__learning_rate": [0.1, 0.01],  # ← 여기에 넘겨야 실제로 optimizer에 반영됨
     "batch_size": [1024,2048],
-    "kernels": [32,64],
-    "regularization" : [None,'l1'],
-    "dropout" : [None,0.2]
+    "model__kernels": [32,64],
+    "model__regularization" : [None,'l1'],
+    "model__dropout" : [None,0.2]
 }
 
-def Conv2DModel(model_name,input_shape,kernel_col, kernels=64,kernel_rows=3,learning_rate=0.01,regularization=None,dropout=None):
+def Conv2DModel(model_name, input_shape, kernel_col, kernels=64, kernel_rows=3, regularization=None, dropout=None):
     K.clear_session()
 
-    model = Sequential(name=model_name)
-    regularizer = regularization
+    inputs = Input(shape=input_shape, name="input")
+    x = Conv2D(kernels, (kernel_rows, kernel_col), strides=(1, 1), kernel_regularizer=regularization, name='conv0')(inputs)
+    if dropout is not None and isinstance(dropout, float):
+        x = Dropout(dropout)(x)
+    x = Activation('relu')(x)
+    x = GlobalMaxPooling2D()(x)
+    x = Flatten()(x)
+    outputs = Dense(1, activation='sigmoid', name='fc1')(x)
 
-    model.add(Conv2D(kernels, (kernel_rows,kernel_col), strides=(1, 1), input_shape=input_shape, kernel_regularizer=regularizer, name='conv0'))
-    if dropout != None and type(dropout) == float:
-        model.add(Dropout(dropout))
-    model.add(Activation('relu'))
-
-    model.add(GlobalMaxPooling2D())
-    model.add(Flatten())
-    model.add(Dense(1, activation='sigmoid', name='fc1'))
-
-    print(model.summary())
-    compileModel(model, learning_rate)
+    model = Model(inputs=inputs, outputs=outputs, name=model_name)
     return model
 
-def compileModel(model,lr):
-    # optimizer = SGD(learning_rate=lr, momentum=0.0, decay=0.0, nesterov=False)
-    optimizer = Adam(learning_rate=lr, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
-    model.compile(loss='binary_crossentropy', optimizer=optimizer,metrics=['accuracy'])  # here we specify the loss function
+def model_builder(**kwargs):
+    # 필요한 키만 뽑기 (Conv2DModel에서 쓰는 키만 허용)
+    valid_keys = {
+        "model_name",
+        "input_shape",
+        "kernel_col",
+        "kernels",
+        "kernel_rows",
+        "learning_rate",
+        "regularization",
+        "dropout"
+    }
+
+    filtered_kwargs = {k: v for k, v in kwargs.items() if k in valid_keys}
+
+    # regularization 처리
+    reg = filtered_kwargs.get("regularization")
+    if isinstance(reg, str):
+        if reg == "l1":
+            filtered_kwargs["regularization"] = regularizers.l1(0.01)
+        elif reg == "l2":
+            filtered_kwargs["regularization"] = regularizers.l2(0.01)
+
+    return Conv2DModel(**filtered_kwargs)
 
 def main(argv):
     help_string = 'Usage: python3 lucid_cnn.py --train <dataset_folder> -e <epocs>'
@@ -157,18 +175,64 @@ def main(argv):
             print ("\nCurrent dataset folder: ", dataset_folder)
 
             model_name = dataset_name + "-LUCID"
-            keras_classifier = KerasClassifier(build_fn=Conv2DModel,model_name=model_name, input_shape=X_train.shape[1:],kernel_col=X_train.shape[2])
-            rnd_search_cv = GridSearchCV(keras_classifier, hyperparamters, cv=args.cross_validation if args.cross_validation > 1 else [(slice(None), slice(None))], refit=True, return_train_score=True)
+                        
+            keras_classifier = KerasClassifier(
+                model=model_builder,
+                model__model_name=model_name,
+                model__input_shape=X_train.shape[1:],
+                model__kernel_col=X_train.shape[2],
+                epochs=args.epochs,
+                verbose=1,
+                optimizer="adam",
+                loss="binary_crossentropy",
+                metrics=["accuracy"],
+                compile=True  # 🔥 이거 반드시 명시
+            )
 
             es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=PATIENCE)
             best_model_filename = OUTPUT_FOLDER + str(time_window) + 't-' + str(max_flow_len) + 'n-' + model_name
             mc = ModelCheckpoint(best_model_filename + '.h5', monitor='val_accuracy', mode='max', verbose=1, save_best_only=True)
-            # With K-Fold cross-validation, the validation set is only used for early stopping
-            rnd_search_cv.fit(X_train, Y_train, epochs=args.epochs, validation_data=(X_val, Y_val), callbacks=[es, mc])
+
+            if args.cross_validation >= 2:
+                print(f"Cross-validation enabled with {args.cross_validation} folds.")
+
+                rnd_search_cv = GridSearchCV(
+                    estimator=keras_classifier,
+                    param_grid=hyperparamters,
+                    cv=args.cross_validation,
+                    refit=True,
+                    return_train_score=True
+                )
+
+                rnd_search_cv.fit(
+                    X_train, Y_train,
+                    callbacks=[es, mc],
+                    validation_data=(X_val, Y_val)
+                )
+
+                best_model = rnd_search_cv.best_estimator_.model_
+                best_model.save(best_model_filename + '.h5')
+
+                Y_pred_val = (best_model.predict(X_val) > 0.5)
+            else:
+                print("Cross-validation disabled. Running single training cycle...")
+
+                keras_classifier.fit(
+                    X_train, Y_train,
+                    callbacks=[es, mc],
+                    validation_data=(X_val, Y_val)
+                )
+
+                keras_classifier.model_.save(best_model_filename + '.h5')
+                Y_pred_val = (keras_classifier.predict(X_val) > 0.5)
 
             # With refit=True (default) GridSearchCV refits the model on the whole training set (no folds) with the best
             # hyper-parameters and makes the resulting model available as rnd_search_cv.best_estimator_.model
-            best_model = rnd_search_cv.best_estimator_.model
+            if args.cross_validation >= 2:
+                best_model = rnd_search_cv.best_estimator_.model_
+            else:
+                best_model = keras_classifier.model_
+
 
             # We overwrite the checkpoint models with the one trained on the whole training set (not only k-1 folds)
             best_model.save(best_model_filename + '.h5')
@@ -187,13 +251,29 @@ def main(argv):
             val_writer = csv.DictWriter(val_file, fieldnames=VAL_HEADER)
             val_writer.writeheader()
             val_file.flush()
-            row = {'Model': model_name, 'Samples': Y_pred_val.shape[0], 'Accuracy': '{:05.4f}'.format(accuracy), 'F1Score': '{:05.4f}'.format(f1_score_val),
-                  'Hyper-parameters': rnd_search_cv.best_params_, "Validation Set": glob.glob(dataset_folder + "/*" + '-val.hdf5')[0]}
+            
+            if args.cross_validation >= 2:
+                hyperparams_used = rnd_search_cv.best_params_
+            else:
+                hyperparams_used = {
+                    "optimizer": "adam",
+                    "loss": "binary_crossentropy",
+                    "metrics": ["accuracy"],
+                    "epochs": args.epochs
+                }
+            row = {
+                'Model': model_name,
+                'Samples': Y_pred_val.shape[0],
+                'Accuracy': '{:05.4f}'.format(accuracy),
+                'F1Score': '{:05.4f}'.format(f1_score_val),
+                'Hyper-parameters': hyperparams_used,
+                'Validation Set': glob.glob(dataset_folder + "/*" + '-val.hdf5')[0]
+            }
             val_writer.writerow(row)
             val_file.close()
 
 
-            print("Best parameters: ", rnd_search_cv.best_params_)
+            print("Best parameters: ", rnd_search_cv.best_params_) if args.cross_validation >= 2 else print("Default parameters used.")
             print("Best model path: ", best_model_filename)
             print("F1 Score of the best model on the validation set: ", f1_score_val)
 
