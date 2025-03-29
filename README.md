@@ -38,8 +38,8 @@ And configure the environment with ```tensorflow``` and a few more packages:
 
 On Linux operating systems:
 ```
-(python39)$ pip install tensorflow==2.7.1
-(python39)$ pip install scikit-learn h5py pyshark protobuf==3.19.6
+(python39)$ pip install tensorflow==2.13.0
+(python39)$ pip install scikit-learn==1.5.2 h5py pyshark protobuf==3.20.3 scikeras==0.12.0
 ```
 
 On macOS (tested on Apple M1 CPU)
