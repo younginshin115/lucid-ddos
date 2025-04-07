@@ -299,7 +299,11 @@ def main(argv):
         predict_file.close()
 
     if args.predict_live is not None:
-        predict_file = open(OUTPUT_FOLDER + 'predictions-' + time.strftime("%Y%m%d-%H%M%S") + '.csv', 'a', newline='')
+        predict_file = open(
+            os.path.join(OUTPUT_FOLDER, f"predictions-{time.strftime('%Y%m%d-%H%M%S')}.csv"),
+            'a',
+            newline=''
+        )
         predict_file.truncate(0)  # clean the file content (as we open the file in append mode)
         predict_writer = csv.DictWriter(predict_file, fieldnames=PREDICT_HEADER)
         predict_writer.writeheader()
