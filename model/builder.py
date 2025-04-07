@@ -4,7 +4,7 @@ from tensorflow.keras.layers import Input, Dense, Activation, Flatten, Conv2D
 from tensorflow.keras.layers import Dropout, GlobalMaxPooling2D
 from tensorflow.keras import regularizers
 import tensorflow.keras.backend as K
-
+from model.regularizer import get_regularizer
 
 def Conv2DModel(model_name, input_shape, kernel_col, kernels=64, kernel_rows=3, regularization=None, dropout=None):
     """
@@ -45,10 +45,6 @@ def model_builder(**kwargs):
 
     # Convert regularization string to actual keras regularizer
     reg = filtered_kwargs.get("regularization")
-    if isinstance(reg, str):
-        if reg == "l1":
-            filtered_kwargs["regularization"] = regularizers.l1(0.01)
-        elif reg == "l2":
-            filtered_kwargs["regularization"] = regularizers.l2(0.01)
+    filtered_kwargs["regularization"] = get_regularizer(reg)
 
     return Conv2DModel(**filtered_kwargs)
