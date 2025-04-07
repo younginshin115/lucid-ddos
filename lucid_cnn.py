@@ -23,7 +23,6 @@ import numpy as np
 import random as rn
 import os
 import csv
-import pprint
 from util_functions import *
 # Seed Random Numbers
 os.environ['PYTHONHASHSEED']=str(SEED)
@@ -31,14 +30,11 @@ np.random.seed(SEED)
 rn.seed(SEED)
 config = tf.compat.v1.ConfigProto(inter_op_parallelism_threads=1)
 
-from tensorflow.keras.layers import Input, Dense, Activation, Flatten, Conv2D
-from tensorflow.keras.layers import Dropout, GlobalMaxPooling2D
-from tensorflow.keras.models import Model, load_model
-from sklearn.metrics import f1_score, accuracy_score, confusion_matrix
+from tensorflow.keras.models import load_model
+from sklearn.metrics import f1_score, accuracy_score
 from sklearn.utils import shuffle
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from scikeras.wrappers import KerasClassifier
-from tensorflow.keras import regularizers
 
 from sklearn.model_selection import GridSearchCV
 from lucid_dataset_parser import *
@@ -50,6 +46,7 @@ tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 config.gpu_options.allow_growth = True  # dynamically grow the memory used on the GPU
 #config.log_device_placement = True  # to log device placement (on which device the operation ran)
 from model.builder import model_builder
+from utils.logger import report_results
 
 from utils.path_utils import create_output_subfolder
 OUTPUT_FOLDER = create_output_subfolder()
@@ -354,30 +351,6 @@ def main(argv):
                 break
 
         predict_file.close()
-
-def report_results(Y_true, Y_pred, packets, model_name, data_source, prediction_time, writer):
-    ddos_rate = '{:04.3f}'.format(sum(Y_pred) / Y_pred.shape[0])
-
-    if Y_true is not None and len(Y_true.shape) > 0:  # if we have the labels, we can compute the classification accuracy
-        Y_true = Y_true.reshape((Y_true.shape[0], 1))
-        accuracy = accuracy_score(Y_true, Y_pred)
-
-        f1 = f1_score(Y_true, Y_pred)
-        tn, fp, fn, tp = confusion_matrix(Y_true, Y_pred, labels=[0, 1]).ravel()
-        tnr = tn / (tn + fp)
-        fpr = fp / (fp + tn)
-        fnr = fn / (fn + tp)
-        tpr = tp / (tp + fn)
-
-        row = {'Model': model_name, 'Time': '{:04.3f}'.format(prediction_time), 'Packets': packets,
-               'Samples': Y_pred.shape[0], 'DDOS%': ddos_rate, 'Accuracy': '{:05.4f}'.format(accuracy), 'F1Score': '{:05.4f}'.format(f1),
-               'TPR': '{:05.4f}'.format(tpr), 'FPR': '{:05.4f}'.format(fpr), 'TNR': '{:05.4f}'.format(tnr), 'FNR': '{:05.4f}'.format(fnr), 'Source': data_source}
-    else:
-        row = {'Model': model_name, 'Time': '{:04.3f}'.format(prediction_time), 'Packets': packets,
-               'Samples': Y_pred.shape[0], 'DDOS%': ddos_rate, 'Accuracy': "N/A", 'F1Score': "N/A",
-               'TPR': "N/A", 'FPR': "N/A", 'TNR': "N/A", 'FNR': "N/A", 'Source': data_source}
-    pprint.pprint(row, sort_dicts=False)
-    writer.writerow(row)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
