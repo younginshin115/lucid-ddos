@@ -23,6 +23,8 @@ import numpy as np
 import os
 import csv
 from util_functions import *
+from utils.constants import SEED, PATIENCE, DEFAULT_EPOCHS, VAL_HEADER, PREDICT_HEADER, HYPERPARAM_GRID 
+
 config = tf.compat.v1.ConfigProto(inter_op_parallelism_threads=1)
 
 from tensorflow.keras.models import load_model
@@ -48,21 +50,6 @@ from utils.logger import report_results
 
 from utils.path_utils import create_output_subfolder, get_output_path
 OUTPUT_FOLDER = create_output_subfolder()
-
-VAL_HEADER = ['Model', 'Samples', 'Accuracy', 'F1Score', 'Hyper-parameters','Validation Set']
-PREDICT_HEADER = ['Model', 'Time', 'Packets', 'Samples', 'DDOS%', 'Accuracy', 'F1Score', 'TPR', 'FPR','TNR', 'FNR', 'Source']
-
-# hyperparameters
-PATIENCE = 10
-DEFAULT_EPOCHS = 1000
-hyperparamters = {
-    "optimizer__learning_rate": [0.1, 0.01],  # ← 여기에 넘겨야 실제로 optimizer에 반영됨
-    "batch_size": [1024,2048],
-    "model__kernels": [32,64],
-    "model__regularization" : [None,'l1'],
-    "model__dropout" : [None,0.2]
-}
-
 
 def main(argv):
     help_string = 'Usage: python3 lucid_cnn.py --train <dataset_folder> -e <epocs>'
@@ -149,10 +136,10 @@ def main(argv):
             es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=PATIENCE)
             
             model_basename = f"{time_window}t-{max_flow_len}n-{model_name}"
-            model_filename = f"{model_basename}.h5"
+            best_model_filename = get_output_path(OUTPUT_FOLDER, model_basename)
 
             mc = ModelCheckpoint(
-                filepath=get_output_path(OUTPUT_FOLDER, model_filename),
+                filepath=best_model_filename + ".h5",
                 monitor="val_accuracy",
                 mode="max",
                 verbose=1,
@@ -164,7 +151,7 @@ def main(argv):
 
                 rnd_search_cv = GridSearchCV(
                     estimator=keras_classifier,
-                    param_grid=hyperparamters,
+                    param_grid=HYPERPARAM_GRID,
                     cv=args.cross_validation,
                     refit=True,
                     return_train_score=True

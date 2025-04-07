@@ -2,8 +2,7 @@ import os
 import random as rn
 import numpy as np
 import tensorflow as tf
-
-SEED = 1
+from utils.constants import SEED
 
 def set_seed(seed=SEED):
     """

@@ -19,12 +19,6 @@ import h5py
 import glob
 from collections import OrderedDict
 
-
-SEED = 1
-MAX_FLOW_LEN = 100 # number of packets
-TIME_WINDOW = 10
-TRAIN_SIZE = 0.90 # size of the training set wrt the total number of samples
-
 protocols = ['arp','data','dns','ftp','http','icmp','ip','ssdp','ssl','telnet','tcp','udp']
 powers_of_two = np.array([2**i for i in range(len(protocols))])
 
