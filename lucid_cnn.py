@@ -147,8 +147,17 @@ def main(argv):
             )
 
             es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=PATIENCE)
-            best_model_filename = OUTPUT_FOLDER + str(time_window) + 't-' + str(max_flow_len) + 'n-' + model_name
-            mc = ModelCheckpoint(best_model_filename + '.h5', monitor='val_accuracy', mode='max', verbose=1, save_best_only=True)
+            best_model_filename = os.path.join(
+                OUTPUT_FOLDER,
+                f"{time_window}t-{max_flow_len}n-{model_name}"
+            )
+            mc = ModelCheckpoint(
+                best_model_filename + ".h5",
+                monitor="val_accuracy",
+                mode="max",
+                verbose=1,
+                save_best_only=True
+            )
 
             if args.cross_validation >= 2:
                 print(f"Cross-validation enabled with {args.cross_validation} folds.")
@@ -235,7 +244,11 @@ def main(argv):
             print("F1 Score of the best model on the validation set: ", f1_score_val)
 
     if args.predict is not None:
-        predict_file = open(OUTPUT_FOLDER + 'predictions-' + time.strftime("%Y%m%d-%H%M%S") + '.csv', 'a', newline='')
+        predict_file = open(
+            os.path.join(OUTPUT_FOLDER, f"predictions-{time.strftime('%Y%m%d-%H%M%S')}.csv"),
+            'a',
+            newline=''
+        )
         predict_file.truncate(0)  # clean the file content (as we open the file in append mode)
         predict_writer = csv.DictWriter(predict_file, fieldnames=PREDICT_HEADER)
         predict_writer.writeheader()
