@@ -46,7 +46,7 @@ config.gpu_options.allow_growth = True  # dynamically grow the memory used on th
 from model.builder import model_builder
 from utils.logger import report_results
 
-from utils.path_utils import create_output_subfolder
+from utils.path_utils import create_output_subfolder, get_output_path
 OUTPUT_FOLDER = create_output_subfolder()
 
 VAL_HEADER = ['Model', 'Samples', 'Accuracy', 'F1Score', 'Hyper-parameters','Validation Set']
@@ -147,12 +147,12 @@ def main(argv):
             )
 
             es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=PATIENCE)
-            best_model_filename = os.path.join(
-                OUTPUT_FOLDER,
-                f"{time_window}t-{max_flow_len}n-{model_name}"
-            )
+            
+            model_basename = f"{time_window}t-{max_flow_len}n-{model_name}"
+            model_filename = f"{model_basename}.h5"
+
             mc = ModelCheckpoint(
-                best_model_filename + ".h5",
+                filepath=get_output_path(OUTPUT_FOLDER, model_filename),
                 monitor="val_accuracy",
                 mode="max",
                 verbose=1,
@@ -245,7 +245,7 @@ def main(argv):
 
     if args.predict is not None:
         predict_file = open(
-            os.path.join(OUTPUT_FOLDER, f"predictions-{time.strftime('%Y%m%d-%H%M%S')}.csv"),
+            get_output_path(OUTPUT_FOLDER, f"predictions-{time.strftime('%Y%m%d-%H%M%S')}.csv"),
             'a',
             newline=''
         )
@@ -300,10 +300,11 @@ def main(argv):
 
     if args.predict_live is not None:
         predict_file = open(
-            os.path.join(OUTPUT_FOLDER, f"predictions-{time.strftime('%Y%m%d-%H%M%S')}.csv"),
+            get_output_path(OUTPUT_FOLDER, f"predictions-{time.strftime('%Y%m%d-%H%M%S')}.csv"),
             'a',
             newline=''
         )
+
         predict_file.truncate(0)  # clean the file content (as we open the file in append mode)
         predict_writer = csv.DictWriter(predict_file, fieldnames=PREDICT_HEADER)
         predict_writer.writeheader()

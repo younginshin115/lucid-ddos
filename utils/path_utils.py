@@ -40,3 +40,16 @@ def create_output_subfolder(base_dir="./output/"):
     os.makedirs(full_path, exist_ok=True)
 
     return full_path
+
+def get_output_path(output_folder: str, filename: str) -> str:
+    """
+    Join a filename with the output folder path safely.
+
+    Args:
+        output_folder (str): Path to the experiment's output directory
+        filename (str): Name of the file (e.g., 'model.h5', 'predictions.csv')
+
+    Returns:
+        str: Full path to the target file inside the output folder
+    """
+    return os.path.join(output_folder, filename)
