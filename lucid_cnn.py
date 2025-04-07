@@ -49,6 +49,7 @@ K.set_image_data_format('channels_last')
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 config.gpu_options.allow_growth = True  # dynamically grow the memory used on the GPU
 #config.log_device_placement = True  # to log device placement (on which device the operation ran)
+from model.builder import model_builder
 
 from utils.path_utils import create_output_subfolder
 OUTPUT_FOLDER = create_output_subfolder()
@@ -67,45 +68,6 @@ hyperparamters = {
     "model__dropout" : [None,0.2]
 }
 
-def Conv2DModel(model_name, input_shape, kernel_col, kernels=64, kernel_rows=3, regularization=None, dropout=None):
-    K.clear_session()
-
-    inputs = Input(shape=input_shape, name="input")
-    x = Conv2D(kernels, (kernel_rows, kernel_col), strides=(1, 1), kernel_regularizer=regularization, name='conv0')(inputs)
-    if dropout is not None and isinstance(dropout, float):
-        x = Dropout(dropout)(x)
-    x = Activation('relu')(x)
-    x = GlobalMaxPooling2D()(x)
-    x = Flatten()(x)
-    outputs = Dense(1, activation='sigmoid', name='fc1')(x)
-
-    model = Model(inputs=inputs, outputs=outputs, name=model_name)
-    return model
-
-def model_builder(**kwargs):
-    # 필요한 키만 뽑기 (Conv2DModel에서 쓰는 키만 허용)
-    valid_keys = {
-        "model_name",
-        "input_shape",
-        "kernel_col",
-        "kernels",
-        "kernel_rows",
-        "learning_rate",
-        "regularization",
-        "dropout"
-    }
-
-    filtered_kwargs = {k: v for k, v in kwargs.items() if k in valid_keys}
-
-    # regularization 처리
-    reg = filtered_kwargs.get("regularization")
-    if isinstance(reg, str):
-        if reg == "l1":
-            filtered_kwargs["regularization"] = regularizers.l1(0.01)
-        elif reg == "l2":
-            filtered_kwargs["regularization"] = regularizers.l2(0.01)
-
-    return Conv2DModel(**filtered_kwargs)
 
 def main(argv):
     help_string = 'Usage: python3 lucid_cnn.py --train <dataset_folder> -e <epocs>'
