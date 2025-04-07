@@ -20,14 +20,9 @@
 
 import tensorflow as tf
 import numpy as np
-import random as rn
 import os
 import csv
 from util_functions import *
-# Seed Random Numbers
-os.environ['PYTHONHASHSEED']=str(SEED)
-np.random.seed(SEED)
-rn.seed(SEED)
 config = tf.compat.v1.ConfigProto(inter_op_parallelism_threads=1)
 
 from tensorflow.keras.models import load_model
@@ -40,7 +35,10 @@ from sklearn.model_selection import GridSearchCV
 from lucid_dataset_parser import *
 
 import tensorflow.keras.backend as K
-tf.random.set_seed(SEED)
+
+from utils.seed_utils import set_seed
+set_seed()
+
 K.set_image_data_format('channels_last')
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 config.gpu_options.allow_growth = True  # dynamically grow the memory used on the GPU
