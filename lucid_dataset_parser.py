@@ -26,8 +26,9 @@ import ipaddress
 from sklearn.feature_extraction.text import CountVectorizer
 from multiprocessing import Process, Manager, Value, Queue
 from util_functions import *
-from utils.constants import MAX_FLOW_LEN, TIME_WINDOW, TRAIN_SIZE, SEED
+from utils.constants import MAX_FLOW_LEN, TIME_WINDOW, TRAIN_SIZE, SEED, PROTOCOLS, POWERS_OF_TWO
 from utils.preprocessing import normalize_and_padding
+from utils.minmax_utils import static_min_max
 
 # Sample commands
 # split a pcap file into smaller chunks to leverage multi-core CPUs: tcpdump -r dataset.pcap -w dataset-chunk -C 1000
@@ -54,7 +55,7 @@ DDOS_ATTACK_SPECS = {
 
 
 vector_proto = CountVectorizer()
-vector_proto.fit_transform(protocols).todense()
+vector_proto.fit_transform(PROTOCOLS).todense()
 
 random.seed(SEED)
 np.random.seed(SEED)
@@ -125,7 +126,7 @@ def parse_packet(pkt):
         protocols = vector_proto.transform([pkt.frame_info.protocols]).toarray().tolist()[0]
         protocols = [1 if i >= 1 else 0 for i in
                      protocols]  # we do not want the protocols counted more than once (sometimes they are listed twice in pkt.frame_info.protocols)
-        protocols_value = int(np.dot(np.array(protocols), powers_of_two))
+        protocols_value = int(np.dot(np.array(protocols), POWERS_OF_TWO))
         pf.features_list.append(protocols_value)
 
         protocol = int(pkt.ip.proto)

@@ -1,3 +1,5 @@
+import numpy as np
+
 SEED = 1
 MAX_FLOW_LEN = 100 # number of packets
 TIME_WINDOW = 10
@@ -14,3 +16,8 @@ HYPERPARAM_GRID = {
     "model__regularization" : [None,'l1'],
     "model__dropout" : [None,0.2]
 }
+PROTOCOLS = [
+    'arp', 'data', 'dns', 'ftp', 'http', 'icmp',
+    'ip', 'ssdp', 'ssl', 'telnet', 'tcp', 'udp'
+]
+POWERS_OF_TWO = np.array([2 ** i for i in range(len(PROTOCOLS))])

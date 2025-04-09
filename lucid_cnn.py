@@ -25,6 +25,7 @@ import csv
 from util_functions import *
 from utils.constants import SEED, PATIENCE, DEFAULT_EPOCHS, VAL_HEADER, PREDICT_HEADER, HYPERPARAM_GRID 
 from utils.preprocessing import normalize_and_padding
+from utils.minmax_utils import static_min_max
 
 config = tf.compat.v1.ConfigProto(inter_op_parallelism_threads=1)
 
