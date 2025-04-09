@@ -50,7 +50,7 @@ tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 config.gpu_options.allow_growth = True  # dynamically grow the memory used on the GPU
 #config.log_device_placement = True  # to log device placement (on which device the operation ran)
 from model.builder import model_builder
-from utils.logger import report_results
+from utils.eval_logger import report_results
 
 from utils.path_utils import create_output_subfolder, get_output_path
 OUTPUT_FOLDER = create_output_subfolder()
