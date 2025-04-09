@@ -25,6 +25,7 @@ from data.data_loader import count_packets_in_dataset
 from utils.preprocessing import normalize_and_padding
 from utils.minmax_utils import static_min_max
 from utils.constants import MAX_FLOW_LEN, TIME_WINDOW, TRAIN_SIZE
+from utils.logging_utils import write_log, get_timestamp
 
 def parse_dataset_from_pcap(args, command_options):
     manager = Manager()
@@ -80,15 +81,12 @@ def parse_dataset_from_pcap(args, command_options):
 
     (total_flows, ddos_flows, benign_flows),  (total_fragments, ddos_fragments, benign_fragments) = count_flows(preprocessed_flows)
 
-    log_string = time.strftime("%Y-%m-%d %H:%M:%S") + " | dataset_type:" + args.dataset_type[0] + \
+    log_message  = time.strftime("%Y-%m-%d %H:%M:%S") + " | dataset_type:" + args.dataset_type[0] + \
                  " | flows (tot,ben,ddos):(" + str(total_flows) + "," + str(benign_flows) + "," + str(ddos_flows) + \
                  ") | fragments (tot,ben,ddos):(" + str(total_fragments) + "," + str(benign_fragments) + "," + str(ddos_fragments) + \
                  ") | options:" + command_options + " | process_time:" + str(time.time() - start_time) + " |\n"
 
-    print(log_string)
-    with open(os.path.join(output_folder, 'history.log'), 'a') as myfile:
-        myfile.write(log_string)
-
+    write_log(log_message, output_folder, get_timestamp())
 
 def preprocess_dataset_from_data(args, command_options):
 
@@ -156,14 +154,11 @@ def preprocess_dataset_from_data(args, command_options):
             hf.create_dataset('set_x', data=X)
             hf.create_dataset('set_y', data=y)
 
-    # 로그
     total = len(y_train) + len(y_val) + len(y_test)
     ddos = np.count_nonzero(np.concatenate([y_train, y_val, y_test]))
-    print_str = f"{time.strftime('%Y-%m-%d %H:%M:%S')} | Total examples: {total} (ddos: {ddos}) | options: {command_options}"
-    print(print_str)
 
-    with open(os.path.join(output_folder, 'history.log'), 'a') as logf:
-        logf.write(print_str + '\n')
+    log_message = f"Total examples: {total} (ddos: {ddos}) | options: {command_options}"
+    write_log(log_message, output_folder, get_timestamp())
 
 def merge_balanced_datasets(args, command_options):
     output_folder = args.output_folder[0] if args.output_folder else args.balance_folder[0]
@@ -224,11 +219,10 @@ def merge_balanced_datasets(args, command_options):
         [final_X['train'], final_X['val'], final_X['test']]
     )
 
-    log_string = time.strftime("%Y-%m-%d %H:%M:%S") + f" | total_flows (tot,ben,ddos):({total_flows},{benign_flows},{ddos_flows})" \
+    log_message = time.strftime("%Y-%m-%d %H:%M:%S") + f" | total_flows (tot,ben,ddos):({total_flows},{benign_flows},{ddos_flows})" \
                  + f" | Packets (train,val,test):({train_packets},{val_packets},{test_packets})" \
                  + f" | Train/Val/Test sizes: ({final_y['train'].shape[0]},{final_y['val'].shape[0]},{final_y['test'].shape[0]})" \
                  + f" | options: {command_options} |\n"
 
-    print(log_string)
-    with open(os.path.join(output_folder, 'history.log'), 'a') as logf:
-        logf.write(log_string)
+    write_log(log_message, output_folder, get_timestamp())
+
