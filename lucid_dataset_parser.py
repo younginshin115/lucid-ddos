@@ -33,6 +33,7 @@ from utils.minmax_utils import static_min_max
 from utils.data_loader import count_packets_in_dataset
 from data.parser import parse_packet, parse_labels
 from data.flow_utils import dataset_to_list_of_fragments, count_flows, balance_dataset
+from data.process_pcap import process_pcap, store_packet, apply_labels
 
 
 # Sample commands
@@ -42,32 +43,6 @@ from data.flow_utils import dataset_to_list_of_fragments, count_flows, balance_d
 
 random.seed(SEED)
 np.random.seed(SEED)
-
-# Offline preprocessing of pcap files for model training, validation and testing
-def process_pcap(pcap_file,dataset_type,in_labels,max_flow_len,labelled_flows,max_flows=0, traffic_type='all',time_window=TIME_WINDOW):
-    start_time = time.time()
-    temp_dict = OrderedDict()
-    start_time_window = -1
-
-    pcap_name = pcap_file.split("/")[-1]
-    print("Processing file: ", pcap_name)
-
-    cap = pyshark.FileCapture(pcap_file)
-    for i, pkt in enumerate(cap):
-        if i % 1000 == 0:
-            print(pcap_name + " packet #", i)
-
-        # start_time_window is used to group packets/flows captured in a time-window
-        if start_time_window == -1 or float(pkt.sniff_timestamp) > start_time_window + time_window:
-            start_time_window = float(pkt.sniff_timestamp)
-
-        pf = parse_packet(pkt)
-        store_packet(pf, temp_dict, start_time_window, max_flow_len)
-        if max_flows > 0 and len(temp_dict) >= max_flows:
-            break
-
-    apply_labels(temp_dict, labelled_flows, in_labels, traffic_type)
-    print('Completed file {} in {} seconds.'.format(pcap_name, time.time() - start_time))
 
 # Transforms live traffic into input samples for inference
 def process_live_traffic(cap, dataset_type, in_labels, max_flow_len, traffic_type='all',time_window=TIME_WINDOW):
@@ -95,44 +70,6 @@ def process_live_traffic(cap, dataset_type, in_labels, max_flow_len, traffic_typ
 
     apply_labels(temp_dict,labelled_flows, in_labels,traffic_type)
     return labelled_flows
-
-def store_packet(pf,temp_dict,start_time_window, max_flow_len):
-    if pf is not None:
-        if pf.id_fwd in temp_dict and start_time_window in temp_dict[pf.id_fwd] and \
-                temp_dict[pf.id_fwd][start_time_window].shape[0] < max_flow_len:
-            temp_dict[pf.id_fwd][start_time_window] = np.vstack(
-                [temp_dict[pf.id_fwd][start_time_window], pf.features_list])
-        elif pf.id_bwd in temp_dict and start_time_window in temp_dict[pf.id_bwd] and \
-                temp_dict[pf.id_bwd][start_time_window].shape[0] < max_flow_len:
-            temp_dict[pf.id_bwd][start_time_window] = np.vstack(
-                [temp_dict[pf.id_bwd][start_time_window], pf.features_list])
-        else:
-            if pf.id_fwd not in temp_dict and pf.id_bwd not in temp_dict:
-                temp_dict[pf.id_fwd] = {start_time_window: np.array([pf.features_list]), 'label': 0}
-            elif pf.id_fwd in temp_dict and start_time_window not in temp_dict[pf.id_fwd]:
-                temp_dict[pf.id_fwd][start_time_window] = np.array([pf.features_list])
-            elif pf.id_bwd in temp_dict and start_time_window not in temp_dict[pf.id_bwd]:
-                temp_dict[pf.id_bwd][start_time_window] = np.array([pf.features_list])
-    return temp_dict
-
-def apply_labels(flows, labelled_flows, labels, traffic_type):
-    for five_tuple, flow in flows.items():
-        if labels is not None:
-            short_key = (five_tuple[0], five_tuple[2])  # for IDS2017/IDS2018 dataset the labels have shorter keys
-            flow['label'] = labels.get(short_key, 0)
-
-        for flow_key, packet_list in flow.items():
-            # relative time wrt the time of the first packet in the flow
-            if flow_key != 'label':
-                amin = np.amin(packet_list,axis=0)[0]
-                packet_list[:, 0] = packet_list[:, 0] - amin
-
-        if traffic_type == 'ddos' and flow['label'] == 0: # we only want malicious flows from this dataset
-            continue
-        elif traffic_type == 'benign' and flow['label'] > 0: # we only want benign flows from this dataset
-            continue
-        else:
-            labelled_flows.append((five_tuple,flow))
 
 def train_test_split(flow_list,train_size=TRAIN_SIZE, shuffle=True):
     test_list = []

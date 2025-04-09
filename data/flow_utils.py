@@ -14,6 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+flow_utils.py
+
+Utility functions for analyzing and transforming flow-level data
+for training and evaluation of DDoS detection models.
+
+Author: Roberto Doriguzzi-Corin
+License: Apache 2.0
+"""
+
 import random
 
 def count_flows(preprocessed_flows):
