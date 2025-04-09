@@ -23,16 +23,16 @@ import glob
 import h5py
 import numpy as np
 
-from multiprocessing import Process, Manager
 from utils.constants import MAX_FLOW_LEN, TIME_WINDOW, TRAIN_SIZE, SEED
 from utils.preprocessing import normalize_and_padding
 from utils.minmax_utils import static_min_max
 from data.data_loader import count_packets_in_dataset
-from data.parser import parse_labels
-from data.flow_utils import dataset_to_list_of_fragments, count_flows, balance_dataset
-from data.process_pcap import process_pcap
+from data.flow_utils import dataset_to_list_of_fragments, balance_dataset
 from data.split import train_test_split
 from data.args import get_dataset_parser, get_usage_examples
+from data.runner import parse_dataset_from_pcap
+
+
 # Sample commands
 # split a pcap file into smaller chunks to leverage multi-core CPUs: tcpdump -r dataset.pcap -w dataset-chunk -C 1000
 # dataset parsing (first step): python3 lucid_dataset_parser.py --dataset_type SYN2020 --dataset_folder ./sample-dataset/ --packets_per_flow 10 --dataset_id SYN2020 --traffic_type all --time_window 10
@@ -43,7 +43,6 @@ np.random.seed(SEED)
 
 def main(argv):
     command_options = " ".join(str(x) for x in argv[1:])
-    manager = Manager()
 
     parser = get_dataset_parser()
     args = parser.parse_args()
@@ -73,75 +72,8 @@ def main(argv):
     else:
         dataset_id = ''
 
-    if args.traffic_type is not None:
-        traffic_type = str(args.traffic_type[0])
-    else:
-        traffic_type = 'all'
-
-    if args.dataset_folder is not None and args.dataset_type is not None:
-        process_list = []
-        flows_list = []
-
-        if args.output_folder is not None and os.path.isdir(args.output_folder[0]) is True:
-            output_folder = args.output_folder[0]
-        else:
-            output_folder = args.dataset_folder[0]
-
-        filelist = glob.glob(args.dataset_folder[0]+ '/*.pcap')
-        in_labels = parse_labels(args.dataset_type[0],args.dataset_folder[0],label=args.label)
-
-        start_time = time.time()
-        for file in filelist:
-            try:
-                flows = manager.list()
-                p = Process(target=process_pcap,args=(file,args.dataset_type[0],in_labels,max_flow_len,flows,args.max_flows, traffic_type,time_window))
-                process_list.append(p)
-                flows_list.append(flows)
-            except FileNotFoundError as e:
-                continue
-
-        for p in process_list:
-            p.start()
-
-        for p in process_list:
-            p.join()
-
-        np.seterr(divide='ignore', invalid='ignore')
-        try:
-            preprocessed_flows = list(flows_list[0])
-        except:
-            print ("ERROR: No traffic flows. \nPlease check that the dataset folder name (" + args.dataset_folder[0] + ") is correct and \nthe folder contains the traffic traces in pcap format (the pcap extension is mandatory)")
-            exit(1)
-
-        #concatenation of the features
-        for results in flows_list[1:]:
-            preprocessed_flows = preprocessed_flows + list(results)
-
-        process_time = time.time()-start_time
-
-        if dataset_id == '':
-            dataset_id = str(args.dataset_type[0])
-
-        filename = str(int(time_window)) + 't-' + str(max_flow_len) + 'n-' + dataset_id + '-preprocess'
-        output_file = output_folder + '/' + filename
-        output_file = output_file.replace("//", "/") # remove double slashes when needed
-
-        with open(output_file + '.data', 'wb') as filehandle:
-            # store the data as binary data stream
-            pickle.dump(preprocessed_flows, filehandle)
-
-
-        (total_flows, ddos_flows, benign_flows),  (total_fragments, ddos_fragments, benign_fragments) = count_flows(preprocessed_flows)
-
-        log_string = time.strftime("%Y-%m-%d %H:%M:%S") + " | dataset_type:" + args.dataset_type[0] + \
-                     " | flows (tot,ben,ddos):(" + str(total_flows) + "," + str(benign_flows) + "," + str(ddos_flows) + \
-                     ") | fragments (tot,ben,ddos):(" + str(total_fragments) + "," + str(benign_fragments) + "," + str(ddos_fragments) + \
-                     ") | options:" + command_options + " | process_time:" + str(process_time) + " |\n"
-        print (log_string)
-
-        # saving log file
-        with open(output_folder + '/history.log', "a") as myfile:
-            myfile.write(log_string)
+    if args.dataset_folder and args.dataset_type:
+        parse_dataset_from_pcap(args, command_options)
 
     if args.preprocess_folder is not None or args.preprocess_file is not None:
         if args.preprocess_folder is not None:
