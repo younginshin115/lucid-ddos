@@ -17,26 +17,22 @@
 import os
 import sys
 import time
-import pyshark
 import pickle
 import random
-import argparse
 import glob
 import h5py
 import numpy as np
-from collections import OrderedDict
 
 from multiprocessing import Process, Manager
 from utils.constants import MAX_FLOW_LEN, TIME_WINDOW, TRAIN_SIZE, SEED
 from utils.preprocessing import normalize_and_padding
 from utils.minmax_utils import static_min_max
-from utils.data_loader import count_packets_in_dataset
-from data.parser import parse_packet, parse_labels
+from data.data_loader import count_packets_in_dataset
+from data.parser import parse_labels
 from data.flow_utils import dataset_to_list_of_fragments, count_flows, balance_dataset
-from data.process_pcap import process_pcap, store_packet, apply_labels
+from data.process_pcap import process_pcap
 from data.split import train_test_split
-
-
+from data.args import get_dataset_parser, get_usage_examples
 # Sample commands
 # split a pcap file into smaller chunks to leverage multi-core CPUs: tcpdump -r dataset.pcap -w dataset-chunk -C 1000
 # dataset parsing (first step): python3 lucid_dataset_parser.py --dataset_type SYN2020 --dataset_folder ./sample-dataset/ --packets_per_flow 10 --dataset_id SYN2020 --traffic_type all --time_window 10
@@ -45,76 +41,22 @@ from data.split import train_test_split
 random.seed(SEED)
 np.random.seed(SEED)
 
-# Transforms live traffic into input samples for inference
-def process_live_traffic(cap, dataset_type, in_labels, max_flow_len, traffic_type='all',time_window=TIME_WINDOW):
-    start_time = time.time()
-    temp_dict = OrderedDict()
-    labelled_flows = []
-
-    start_time_window = start_time
-    time_window = start_time_window + time_window
-
-    if isinstance(cap, pyshark.LiveCapture) == True:
-        for pkt in cap.sniff_continuously():
-            if time.time() >= time_window:
-                break
-            pf = parse_packet(pkt)
-            temp_dict = store_packet(pf, temp_dict, start_time_window, max_flow_len)
-    elif isinstance(cap, pyshark.FileCapture) == True:
-        while time.time() < time_window:
-            try:
-                pkt = cap.next()
-                pf = parse_packet(pkt)
-                temp_dict = store_packet(pf,temp_dict,start_time_window,max_flow_len)
-            except:
-                break
-
-    apply_labels(temp_dict,labelled_flows, in_labels,traffic_type)
-    return labelled_flows
-
 def main(argv):
     command_options = " ".join(str(x) for x in argv[1:])
-
-    help_string = 'Usage[0]: python3 lucid_dataset_parser.py --dataset_type <dataset_name> --dataset_folder <folder path> --dataset_id <dataset identifier> --packets_per_flow <n> --time_window <t>\n' \
-                  'Usage[1]: python3 lucid_dataset_parser.py --preprocess_folder <folder path>'
     manager = Manager()
 
-    parser = argparse.ArgumentParser(
-        description='Dataset parser',
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-
-    parser.add_argument('-d', '--dataset_folder', nargs='+', type=str,
-                        help='Folder with the dataset')
-    parser.add_argument('-o', '--output_folder', nargs='+', type=str,
-                        help='Output folder')
-    parser.add_argument('-f', '--traffic_type', default='all', nargs='+', type=str,
-                        help='Type of flow to process (all, benign, ddos)')
-    parser.add_argument('-p', '--preprocess_folder', nargs='+', type=str,
-                        help='Folder with preprocessed data')
-    parser.add_argument('--preprocess_file', nargs='+', type=str,
-                        help='File with preprocessed data')
-    parser.add_argument('-b', '--balance_folder', nargs='+', type=str,
-                        help='Folder where balancing datasets')
-    parser.add_argument('-n', '--packets_per_flow', nargs='+', type=str,
-                        help='Packet per flow sample')
-    parser.add_argument('-s', '--samples', default=float('inf'), type=int,
-                        help='Number of training samples in the reduced output')
-    parser.add_argument('-i', '--dataset_id', nargs='+', type=str,
-                        help='String to append to the names of output files')
-    parser.add_argument('-m', '--max_flows', default=0, type=int,
-                        help='Max number of flows to extract from the pcap files')
-    parser.add_argument('-l', '--label', default=1, type=int,
-                        help='Label assigned to the DDoS class')
-
-    parser.add_argument('-t', '--dataset_type', nargs='+', type=str,
-                        help='Type of the dataset. Available options are: DOS2017, DOS2018, DOS2019, SYN2020')
-
-    parser.add_argument('-w', '--time_window', nargs='+', type=str,
-                        help='Length of the time window')
-
-    parser.add_argument('--no_split', help='Do not split the dataset', action='store_true')
-
+    parser = get_dataset_parser()
     args = parser.parse_args()
+
+    if not any([args.dataset_folder, args.preprocess_folder, args.preprocess_file, args.balance_folder]):
+        parser.error("Please specify an input source.\n\n" + get_usage_examples())
+
+    if args.dataset_folder and not args.dataset_type:
+        parser.error("Please specify the dataset type (DOS2017, DOS2018, DOS2019, SYN2020) using the --dataset_type option.\n\n" + get_usage_examples())
+
+    if args.balance_folder and not args.output_folder:
+        parser.error("Please specify the output folder using the --output_folder option.\n\n" + get_usage_examples())
+
 
     if args.packets_per_flow is not None:
         max_flow_len = int(args.packets_per_flow[0])
@@ -433,15 +375,6 @@ def main(argv):
         with open(output_folder + '/history.log', "a") as myfile:
             myfile.write(log_string)
 
-
-    if args.dataset_folder is None and args.preprocess_folder is None and args.preprocess_file is None and args.balance_folder is None:
-        print (help_string)
-    if args.dataset_type is None and args.dataset_folder is not None:
-        print("Please specify the dataset type (DOS2017, DOS2018, DOS2020)!")
-        print(help_string)
-    if args.output_folder is None and args.balance_folder is not None:
-        print("Please specify the output folder!")
-        print(help_string)
 
 if __name__ == "__main__":
     main(sys.argv)
