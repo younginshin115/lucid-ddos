@@ -29,7 +29,7 @@ from utils.minmax_utils import static_min_max
 from data.data_loader import count_packets_in_dataset
 from data.flow_utils import dataset_to_list_of_fragments, balance_dataset
 from data.split import train_test_split
-from data.args import get_dataset_parser, get_usage_examples
+from data.args import get_dataset_parser, validate_args
 from data.runner import parse_dataset_from_pcap
 
 
@@ -46,15 +46,7 @@ def main(argv):
 
     parser = get_dataset_parser()
     args = parser.parse_args()
-
-    if not any([args.dataset_folder, args.preprocess_folder, args.preprocess_file, args.balance_folder]):
-        parser.error("Please specify an input source.\n\n" + get_usage_examples())
-
-    if args.dataset_folder and not args.dataset_type:
-        parser.error("Please specify the dataset type (DOS2017, DOS2018, DOS2019, SYN2020) using the --dataset_type option.\n\n" + get_usage_examples())
-
-    if args.balance_folder and not args.output_folder:
-        parser.error("Please specify the output folder using the --output_folder option.\n\n" + get_usage_examples())
+    validate_args(args, parser)
 
 
     if args.packets_per_flow is not None:

@@ -74,3 +74,13 @@ def get_dataset_parser():
     parser.add_argument('--version', action='version', version='LUCID v1.0')
 
     return parser
+
+def validate_args(args, parser):
+    if not any([args.dataset_folder, args.preprocess_folder, args.preprocess_file, args.balance_folder]):
+        parser.error("Please specify an input source.\n\n" + get_usage_examples())
+
+    if args.dataset_folder and not args.dataset_type:
+        parser.error("Please specify the dataset type (DOS2017, DOS2018, DOS2019, SYN2020) using the --dataset_type option.\n\n" + get_usage_examples())
+
+    if args.balance_folder and not args.output_folder:
+        parser.error("Please specify the output folder using the --output_folder option.\n\n" + get_usage_examples())
