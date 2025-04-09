@@ -34,6 +34,7 @@ from utils.data_loader import count_packets_in_dataset
 from data.parser import parse_packet, parse_labels
 from data.flow_utils import dataset_to_list_of_fragments, count_flows, balance_dataset
 from data.process_pcap import process_pcap, store_packet, apply_labels
+from data.split import train_test_split
 
 
 # Sample commands
@@ -70,23 +71,6 @@ def process_live_traffic(cap, dataset_type, in_labels, max_flow_len, traffic_typ
 
     apply_labels(temp_dict,labelled_flows, in_labels,traffic_type)
     return labelled_flows
-
-def train_test_split(flow_list,train_size=TRAIN_SIZE, shuffle=True):
-    test_list = []
-    _,(total_examples,_,_) = count_flows(flow_list)
-    test_examples = total_examples - total_examples*train_size
-
-    if shuffle == True:
-        random.shuffle(flow_list)
-
-    current_test_examples = 0
-    while current_test_examples < test_examples:
-        flow = flow_list.pop(0)
-        test_list.append(flow)
-        current_test_examples += len(flow[1])-1
-
-
-    return flow_list,test_list
 
 def main(argv):
     command_options = " ".join(str(x) for x in argv[1:])
