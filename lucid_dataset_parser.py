@@ -18,23 +18,20 @@ import os
 import sys
 import time
 import pyshark
-import socket
 import pickle
 import random
-import hashlib
 import argparse
-import ipaddress
 import glob
 import h5py
 import numpy as np
 from collections import OrderedDict
 
-from sklearn.feature_extraction.text import CountVectorizer
-from multiprocessing import Process, Manager, Value, Queue
-from utils.constants import MAX_FLOW_LEN, TIME_WINDOW, TRAIN_SIZE, SEED, PROTOCOLS, POWERS_OF_TWO
+from multiprocessing import Process, Manager
+from utils.constants import MAX_FLOW_LEN, TIME_WINDOW, TRAIN_SIZE, SEED
 from utils.preprocessing import normalize_and_padding
 from utils.minmax_utils import static_min_max
 from utils.data_loader import count_packets_in_dataset
+from data.parser import parse_packet, parse_labels
 
 
 # Sample commands
@@ -42,132 +39,8 @@ from utils.data_loader import count_packets_in_dataset
 # dataset parsing (first step): python3 lucid_dataset_parser.py --dataset_type SYN2020 --dataset_folder ./sample-dataset/ --packets_per_flow 10 --dataset_id SYN2020 --traffic_type all --time_window 10
 # dataset parsing (second step): python3 lucid_dataset_parser.py --preprocess_folder ./sample-dataset/
 
-IDS2018_DDOS_FLOWS = {'attackers': ['18.218.115.60', '18.219.9.1','18.219.32.43','18.218.55.126','52.14.136.135','18.219.5.43','18.216.200.189','18.218.229.235','18.218.11.51','18.216.24.42'],
-                      'victims': ['18.218.83.150','172.31.69.28']}
-
-IDS2017_DDOS_FLOWS = {'attackers': ['172.16.0.1'],
-                      'victims': ['192.168.10.50']}
-
-CUSTOM_DDOS_SYN = {'attackers': ['11.0.0.' + str(x) for x in range(1,255)],
-                      'victims': ['10.42.0.2']}
-
-DOS2019_FLOWS = {'attackers': ['172.16.0.5'], 'victims': ['192.168.50.1', '192.168.50.4']}
-
-DDOS_ATTACK_SPECS = {
-    'DOS2017' : IDS2017_DDOS_FLOWS,
-    'DOS2018' : IDS2018_DDOS_FLOWS,
-    'SYN2020' : CUSTOM_DDOS_SYN,
-    'DOS2019': DOS2019_FLOWS
-}
-
-
-vector_proto = CountVectorizer()
-vector_proto.fit_transform(PROTOCOLS).todense()
-
 random.seed(SEED)
 np.random.seed(SEED)
-
-class packet_features:
-    def __init__(self):
-        self.id_fwd = (0,0,0,0,0) # 5-tuple src_ip_addr, src_port,,dst_ip_addr,dst_port,protocol
-        self.id_bwd = (0,0,0,0,0)  # 5-tuple src_ip_addr, src_port,,dst_ip_addr,dst_port,protocol
-        self.features_list = []
-
-
-    def __str__(self):
-        return "{} -> {}".format(self.id_fwd, self.features_list)
-
-def get_ddos_flows(attackers,victims):
-    DDOS_FLOWS = {}
-
-    if '/' in attackers: # subnet
-        DDOS_FLOWS['attackers'] = [str(ip) for ip in list(ipaddress.IPv4Network(attackers).hosts())]
-    else: # single address
-        DDOS_FLOWS['attackers'] = [str(ipaddress.IPv4Address(attackers))]
-
-    if '/' in victims:  # subnet
-        DDOS_FLOWS['victims'] = [str(ip) for ip in list(ipaddress.IPv4Network(victims).hosts())]
-    else:  # single address
-        DDOS_FLOWS['victims'] = [str(ipaddress.IPv4Address(victims))]
-
-    return DDOS_FLOWS
-
-# function that build the labels based on the dataset type
-def parse_labels(dataset_type=None, attackers=None,victims=None, label=1):
-    output_dict = {}
-
-    if attackers is not None and victims is not None:
-        DDOS_FLOWS = get_ddos_flows(attackers, victims)
-    elif dataset_type is not None and dataset_type in DDOS_ATTACK_SPECS:
-        DDOS_FLOWS = DDOS_ATTACK_SPECS[dataset_type]
-    else:
-        return None
-
-    for attacker in DDOS_FLOWS['attackers']:
-        for victim in DDOS_FLOWS['victims']:
-            ip_src = str(attacker)
-            ip_dst = str(victim)
-            key_fwd = (ip_src, ip_dst)
-            key_bwd = (ip_dst, ip_src)
-
-            if key_fwd not in output_dict:
-                output_dict[key_fwd] = label
-            if key_bwd not in output_dict:
-                output_dict[key_bwd] = label
-
-    return output_dict
-
-def parse_packet(pkt):
-    pf = packet_features()
-    tmp_id = [0,0,0,0,0]
-
-    try:
-        pf.features_list.append(float(pkt.sniff_timestamp))  # timestampchild.find('Tag').text
-        pf.features_list.append(int(pkt.ip.len))  # packet length
-        pf.features_list.append(int(hashlib.sha256(str(pkt.highest_layer).encode('utf-8')).hexdigest(),
-                                    16) % 10 ** 8)  # highest layer in the packet
-        pf.features_list.append(int(int(pkt.ip.flags, 16)))  # IP flags
-        tmp_id[0] = str(pkt.ip.src)  # int(ipaddress.IPv4Address(pkt.ip.src))
-        tmp_id[2] = str(pkt.ip.dst)  # int(ipaddress.IPv4Address(pkt.ip.dst))
-
-        protocols = vector_proto.transform([pkt.frame_info.protocols]).toarray().tolist()[0]
-        protocols = [1 if i >= 1 else 0 for i in
-                     protocols]  # we do not want the protocols counted more than once (sometimes they are listed twice in pkt.frame_info.protocols)
-        protocols_value = int(np.dot(np.array(protocols), POWERS_OF_TWO))
-        pf.features_list.append(protocols_value)
-
-        protocol = int(pkt.ip.proto)
-        tmp_id[4] = protocol
-        if pkt.transport_layer != None:
-            if protocol == socket.IPPROTO_TCP:
-                tmp_id[1] = int(pkt.tcp.srcport)
-                tmp_id[3] = int(pkt.tcp.dstport)
-                pf.features_list.append(int(pkt.tcp.len))  # TCP length
-                pf.features_list.append(int(pkt.tcp.ack))  # TCP ack
-                pf.features_list.append(int(pkt.tcp.flags, 16))  # TCP flags
-                pf.features_list.append(int(pkt.tcp.window_size_value))  # TCP window size
-                pf.features_list = pf.features_list + [0, 0]  # UDP + ICMP positions
-            elif protocol == socket.IPPROTO_UDP:
-                pf.features_list = pf.features_list + [0, 0, 0, 0]  # TCP positions
-                tmp_id[1] = int(pkt.udp.srcport)
-                pf.features_list.append(int(pkt.udp.length))  # UDP length
-                tmp_id[3] = int(pkt.udp.dstport)
-                pf.features_list = pf.features_list + [0]  # ICMP position
-        elif protocol == socket.IPPROTO_ICMP:
-            pf.features_list = pf.features_list + [0, 0, 0, 0, 0]  # TCP and UDP positions
-            pf.features_list.append(int(pkt.icmp.type))  # ICMP type
-        else:
-            pf.features_list = pf.features_list + [0, 0, 0, 0, 0, 0]  # padding for layer3-only packets
-            tmp_id[4] = 0
-
-        pf.id_fwd = (tmp_id[0], tmp_id[1], tmp_id[2], tmp_id[3], tmp_id[4])
-        pf.id_bwd = (tmp_id[2], tmp_id[3], tmp_id[0], tmp_id[1], tmp_id[4])
-
-        return pf
-
-    except AttributeError as e:
-        # ignore packets that aren't TCP/UDP or IPv4
-        return None
 
 # Offline preprocessing of pcap files for model training, validation and testing
 def process_pcap(pcap_file,dataset_type,in_labels,max_flow_len,labelled_flows,max_flows=0, traffic_type='all',time_window=TIME_WINDOW):

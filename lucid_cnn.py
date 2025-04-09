@@ -26,6 +26,7 @@ from utils.constants import SEED, PATIENCE, DEFAULT_EPOCHS, VAL_HEADER, PREDICT_
 from utils.preprocessing import normalize_and_padding
 from utils.minmax_utils import static_min_max
 from utils.data_loader import load_dataset, count_packets_in_dataset
+from data.parser import parse_labels
 
 config = tf.compat.v1.ConfigProto(inter_op_parallelism_threads=1)
 
