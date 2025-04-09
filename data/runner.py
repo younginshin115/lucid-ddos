@@ -21,6 +21,7 @@ from data.parser import parse_labels
 from data.process_pcap import process_pcap
 from data.flow_utils import count_flows, balance_dataset, dataset_to_list_of_fragments
 from data.split import train_test_split
+from data.data_loader import count_packets_in_dataset
 from utils.preprocessing import normalize_and_padding
 from utils.minmax_utils import static_min_max
 from utils.constants import MAX_FLOW_LEN, TIME_WINDOW, TRAIN_SIZE
@@ -163,3 +164,71 @@ def preprocess_dataset_from_data(args, command_options):
 
     with open(os.path.join(output_folder, 'history.log'), 'a') as logf:
         logf.write(print_str + '\n')
+
+def merge_balanced_datasets(args, command_options):
+    output_folder = args.output_folder[0] if args.output_folder else args.balance_folder[0]
+
+    datasets = []
+    for folder in args.balance_folder:
+        datasets += glob.glob(os.path.join(folder, '*.hdf5'))
+
+    train_files, val_files, test_files = {}, {}, {}
+    min_train, min_val, min_test = float('inf'), float('inf'), float('inf')
+    output_prefix = None
+
+    for file in datasets:
+        filename = os.path.basename(file)
+        with h5py.File(file, 'r') as f:
+            X, Y = np.array(f["set_x"][:]), np.array(f["set_y"][:])
+        if 'train' in filename:
+            key = filename.split('dataset')[0] + 'dataset-balanced-train.hdf5'
+            output_prefix = output_prefix or filename.split('IDS')[0].strip()
+            if filename.split('IDS')[0].strip() != output_prefix:
+                print("Inconsistent datasets!"); exit()
+            train_files[key] = (X, Y)
+            min_train = min(min_train, X.shape[0])
+        elif 'val' in filename:
+            key = filename.split('dataset')[0] + 'dataset-balanced-val.hdf5'
+            output_prefix = output_prefix or filename.split('IDS')[0].strip()
+            if filename.split('IDS')[0].strip() != output_prefix:
+                print("Inconsistent datasets!"); exit()
+            val_files[key] = (X, Y)
+            min_val = min(min_val, X.shape[0])
+        elif 'test' in filename:
+            key = filename.split('dataset')[0] + 'dataset-balanced-test.hdf5'
+            output_prefix = output_prefix or filename.split('IDS')[0].strip()
+            if filename.split('IDS')[0].strip() != output_prefix:
+                print("Inconsistent datasets!"); exit()
+            test_files[key] = (X, Y)
+            min_test = min(min_test, X.shape[0])
+
+    final_X, final_y = {'train': None, 'val': None, 'test': None}, {'train': None, 'val': None, 'test': None}
+
+    for split, file_dict, min_samples in [('train', train_files, min_train), ('val', val_files, min_val), ('test', test_files, min_test)]:
+        for _, (X, Y) in file_dict.items():
+            X_short = X[:min_samples]
+            Y_short = Y[:min_samples]
+            final_X[split] = X_short if final_X[split] is None else np.vstack((final_X[split], X_short))
+            final_y[split] = Y_short if final_y[split] is None else np.hstack((final_y[split], Y_short))
+
+    for split in ['train', 'val', 'test']:
+        filename = f"{output_prefix}IDS201X-dataset-balanced-{split}.hdf5"
+        with h5py.File(os.path.join(output_folder, filename), 'w') as hf:
+            hf.create_dataset('set_x', data=final_X[split])
+            hf.create_dataset('set_y', data=final_y[split])
+
+    total_flows = sum(final_y[split].shape[0] for split in ['train', 'val', 'test'])
+    ddos_flows = sum(np.count_nonzero(final_y[split]) for split in ['train', 'val', 'test'])
+    benign_flows = total_flows - ddos_flows
+    [train_packets, val_packets, test_packets] = count_packets_in_dataset(
+        [final_X['train'], final_X['val'], final_X['test']]
+    )
+
+    log_string = time.strftime("%Y-%m-%d %H:%M:%S") + f" | total_flows (tot,ben,ddos):({total_flows},{benign_flows},{ddos_flows})" \
+                 + f" | Packets (train,val,test):({train_packets},{val_packets},{test_packets})" \
+                 + f" | Train/Val/Test sizes: ({final_y['train'].shape[0]},{final_y['val'].shape[0]},{final_y['test'].shape[0]})" \
+                 + f" | options: {command_options} |\n"
+
+    print(log_string)
+    with open(os.path.join(output_folder, 'history.log'), 'a') as logf:
+        logf.write(log_string)
