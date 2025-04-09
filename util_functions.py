@@ -49,10 +49,6 @@ def load_dataset(path):
 
     return X_train, Y_train
 
-def scale_linear_bycolumn(rawpoints, mins,maxs,high=1.0, low=0.0):
-    rng = maxs - mins
-    return high - (((high - low) * (maxs - rawpoints)) / rng)
-
 def count_packets_in_dataset(X_list):
     packet_counters = []
     for X in X_list:
@@ -96,28 +92,3 @@ def find_min_max(X,time_window=10):
     min_array[0] = 0
 
     return min_array,max_array
-
-def normalize_and_padding(X,mins,maxs,max_flow_len,padding=True):
-    norm_X = []
-    for sample in X:
-        if sample.shape[0] > max_flow_len: # if the sample is bigger than expected, we cut the sample
-            sample = sample[:max_flow_len,...]
-        packet_nr = sample.shape[0] # number of packets in one sample
-
-        norm_sample = scale_linear_bycolumn(sample, mins, maxs, high=1.0, low=0.0)
-        np.nan_to_num(norm_sample, copy=False)  # remove NaN from the array
-        if padding == True:
-            norm_sample = np.pad(norm_sample, ((0, max_flow_len - packet_nr), (0, 0)), 'constant',constant_values=(0, 0))  # padding
-        norm_X.append(norm_sample)
-    return norm_X
-
-def padding(X,max_flow_len):
-    padded_X = []
-    for sample in X:
-        flow_nr = sample.shape[0]
-        padded_sample = np.pad(sample, ((0, max_flow_len - flow_nr), (0, 0)), 'constant',
-                              constant_values=(0, 0))  # padding
-        padded_X.append(padded_sample)
-    return padded_X
-
-
