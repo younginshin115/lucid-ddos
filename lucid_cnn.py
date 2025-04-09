@@ -25,9 +25,10 @@ import csv
 from utils.constants import SEED, PATIENCE, DEFAULT_EPOCHS, VAL_HEADER, PREDICT_HEADER, HYPERPARAM_GRID 
 from utils.preprocessing import normalize_and_padding
 from utils.minmax_utils import static_min_max
-from utils.data_loader import load_dataset, count_packets_in_dataset
+from data.data_loader import load_dataset, count_packets_in_dataset
 from data.parser import parse_labels
 from data.flow_utils import dataset_to_list_of_fragments
+from data.live_process import process_live_traffic
 
 config = tf.compat.v1.ConfigProto(inter_op_parallelism_threads=1)
 
@@ -38,7 +39,6 @@ from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from scikeras.wrappers import KerasClassifier
 
 from sklearn.model_selection import GridSearchCV
-from lucid_dataset_parser import *
 
 import tensorflow.keras.backend as K
 
