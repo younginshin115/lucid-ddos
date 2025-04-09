@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import sys
 import time
 import pyshark
@@ -23,12 +24,18 @@ import random
 import hashlib
 import argparse
 import ipaddress
+import glob
+import h5py
+import numpy as np
+from collections import OrderedDict
+
 from sklearn.feature_extraction.text import CountVectorizer
 from multiprocessing import Process, Manager, Value, Queue
-from util_functions import *
 from utils.constants import MAX_FLOW_LEN, TIME_WINDOW, TRAIN_SIZE, SEED, PROTOCOLS, POWERS_OF_TWO
 from utils.preprocessing import normalize_and_padding
 from utils.minmax_utils import static_min_max
+from utils.data_loader import count_packets_in_dataset
+
 
 # Sample commands
 # split a pcap file into smaller chunks to leverage multi-core CPUs: tcpdump -r dataset.pcap -w dataset-chunk -C 1000
