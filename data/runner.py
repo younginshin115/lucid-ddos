@@ -36,7 +36,7 @@ def parse_dataset_from_pcap(args, command_options):
         output_folder = args.dataset_folder[0]
 
     filelist = glob.glob(args.dataset_folder[0]+ '/*.pcap')
-    in_labels = parse_labels(args.dataset_type[0], args.dataset_folder[0], label=args.label)
+    in_labels = parse_labels(dataset_type=args.dataset_type[0], label=args.label)
 
     max_flow_len = int(args.packets_per_flow[0]) if args.packets_per_flow else MAX_FLOW_LEN
     time_window = float(args.time_window[0]) if args.time_window else TIME_WINDOW
