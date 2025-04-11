@@ -1,17 +1,14 @@
 # core/live_predictor.py
 
 import os
-import time
-import numpy as np
+
 import pyshark
 
-from data.data_loader import count_packets_in_dataset
+from core.prediction_runner import run_prediction_loop
 from data.parser import parse_labels
 from data.flow_utils import dataset_to_list_of_fragments
 from data.live_process import process_live_traffic
-from utils.preprocessing import normalize_and_padding
 from utils.minmax_utils import static_min_max
-from utils.eval_logger import report_results
 from utils.prediction_utils import (
     load_model,
     extract_model_metadata,
@@ -67,17 +64,18 @@ def run_live_prediction(args, output_folder: str):
 
         if samples:
             X, Y_true, keys = dataset_to_list_of_fragments(samples)
-            X = np.array(normalize_and_padding(X, mins, maxs, max_flow_len))
-            Y_true = np.array(Y_true) if labels else None
-            X = np.expand_dims(X, axis=3)
+            run_prediction_loop(
+                X_raw=X,
+                Y_true=Y_true,
+                model=model,
+                model_name=model_name_string,
+                source_name=data_source,
+                mins=mins,
+                maxs=maxs,
+                max_flow_len=max_flow_len,
+                writer=predict_writer
+            )
 
-            pt0 = time.time()
-            Y_pred = np.squeeze(model.predict(X, batch_size=2048) > 0.5, axis=1)
-            pt1 = time.time()
-            prediction_time = pt1 - pt0
-
-            [packets] = count_packets_in_dataset([X])
-            report_results(np.squeeze(Y_true), Y_pred, packets, model_name_string, data_source, prediction_time, predict_writer)
             predict_file.flush()
 
         elif isinstance(cap, pyshark.FileCapture):

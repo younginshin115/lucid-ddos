@@ -2,17 +2,18 @@ import os
 import csv
 import glob
 import time
-import numpy as np
 
+from core.prediction_runner import run_prediction_loop
 from data.data_loader import load_dataset, count_packets_in_dataset
 from utils.constants import PREDICT_HEADER
 from utils.path_utils import get_output_path
-from utils.eval_logger import report_results
+from utils.minmax_utils import static_min_max
 from utils.prediction_utils import (
     load_model,
     extract_filename_prefix,
     warm_up_model,
-    get_dataset_files
+    get_dataset_files,
+    extract_model_metadata
 )
 
 def run_batch_prediction(args, output_folder):
@@ -51,6 +52,10 @@ def run_batch_prediction(args, output_folder):
         # Load Keras model from .h5 file
         model = load_model(model_path)
 
+        # Extract model parameters and normalization settings
+        time_window, max_flow_len, model_name_string = extract_model_metadata(model_path)
+        mins, maxs = static_min_max(time_window)
+
         # Perform a dummy forward pass to initialize GPU memory, etc.
         warm_up_model(model, sample_file=dataset_filelist[0])
 
@@ -65,30 +70,23 @@ def run_batch_prediction(args, output_folder):
                 continue
 
             # Load test dataset and count packets
-            X, Y = load_dataset(dataset_file)
+            
+            X, Y_true = load_dataset(dataset_file)
             [packets] = count_packets_in_dataset([X])
-            Y_true = Y
-            avg_time = 0
 
-            # Repeat prediction multiple times to average runtime
             for _ in range(iterations):
-                pt0 = time.time()
-                Y_pred = np.squeeze(model.predict(X, batch_size=2048) > 0.5)
-                pt1 = time.time()
-                avg_time += pt1 - pt0
-
-            avg_time /= iterations
-
-            # Report and log results
-            report_results(
-                np.squeeze(Y_true),
-                Y_pred,
-                packets,
-                model_name_string,
-                filename,
-                avg_time,
-                predict_writer
-            )
+                run_prediction_loop(
+                    X_raw=X,
+                    Y_true=Y_true,
+                    model=model,
+                    model_name=model_name_string,
+                    source_name=os.path.basename(dataset_file),
+                    mins=mins,
+                    maxs=maxs,
+                    max_flow_len=max_flow_len,
+                    writer=predict_writer,
+                    packets=packets
+                )
             predict_file.flush()
 
     predict_file.close()
