@@ -1,43 +1,40 @@
+# core/live_predictor.py
+
 import os
-import csv
 import time
-import pyshark
 import numpy as np
-from tensorflow.keras.models import load_model
+import pyshark
 
 from data.data_loader import count_packets_in_dataset
 from data.parser import parse_labels
 from data.flow_utils import dataset_to_list_of_fragments
 from data.live_process import process_live_traffic
-from utils.constants import PREDICT_HEADER
 from utils.preprocessing import normalize_and_padding
 from utils.minmax_utils import static_min_max
-from utils.path_utils import get_output_path
 from utils.eval_logger import report_results
-
+from utils.prediction_utils import (
+    load_model,
+    extract_model_metadata,
+    setup_prediction_output
+)
 
 def run_live_prediction(args, output_folder: str):
     """
     Run live prediction on a network interface or pcap file.
 
     Args:
-        args (argparse.Namespace): Parsed arguments containing model and interface/pcap
-        output_folder (str): Path to save prediction logs
+        args (argparse.Namespace): Parsed arguments
+        output_folder (str): Path to save prediction results
     """
-    predict_file = open(
-        get_output_path(output_folder, f"predictions-{time.strftime('%Y%m%d-%H%M%S')}.csv"),
-        'a',
-        newline=''
-    )
-    predict_file.truncate(0)
-    predict_writer = csv.DictWriter(predict_file, fieldnames=PREDICT_HEADER)
-    predict_writer.writeheader()
-    predict_file.flush()
+    # Prepare CSV writer
+    predict_file, predict_writer = setup_prediction_output(output_folder)
 
+    # Load traffic capture
     if args.predict_live is None:
         print("Please specify a valid network interface or pcap file!")
         exit(-1)
-    elif args.predict_live.endswith('.pcap'):
+
+    if args.predict_live.endswith('.pcap'):
         cap = pyshark.FileCapture(args.predict_live)
         data_source = os.path.basename(args.predict_live)
     else:
@@ -54,16 +51,11 @@ def run_live_prediction(args, output_folder: str):
         print("No valid model specified!")
         exit(-1)
 
-    model_path = args.model
-    model_filename = os.path.basename(model_path)
-    filename_prefix = model_filename.split('n')[0] + 'n-'
-    time_window = int(filename_prefix.split('t-')[0])
-    max_flow_len = int(filename_prefix.split('t-')[1].split('n-')[0])
-    model_name_string = model_filename.split(filename_prefix)[1].strip().split('.')[0].strip()
-
-    model = load_model(model_path)
+    model = load_model(args.model)
+    time_window, max_flow_len, model_name_string = extract_model_metadata(args.model)
     mins, maxs = static_min_max(time_window)
 
+    # Prediction loop
     while True:
         samples = process_live_traffic(cap, args.dataset_type, labels, max_flow_len, traffic_type="all", time_window=time_window)
 

@@ -1,7 +1,11 @@
 import os
 import glob
+import time
+import csv
 from tensorflow.keras.models import load_model as keras_load_model
 from data.data_loader import load_dataset
+from utils.path_utils import get_output_path
+from utils.constants import PREDICT_HEADER
 
 def load_model(model_path: str):
     """
@@ -56,3 +60,41 @@ def get_dataset_files(dataset_folder: str) -> list:
         list: List of test file paths
     """
     return glob.glob(os.path.join(dataset_folder, "*test.hdf5"))
+
+def extract_model_metadata(model_path: str):
+    """
+    Extract time_window, max_flow_len, and model name from the model filename.
+
+    Args:
+        model_path (str): Full path to model (.h5)
+
+    Returns:
+        tuple: (time_window: int, max_flow_len: int, model_name_string: str)
+    """
+    model_filename = os.path.basename(model_path)
+    filename_prefix = extract_filename_prefix(model_filename)
+    time_window = int(filename_prefix.split('t-')[0])
+    max_flow_len = int(filename_prefix.split('t-')[1].split('n-')[0])
+    model_name_string = model_filename.split(filename_prefix)[1].strip().split('.')[0].strip()
+    return time_window, max_flow_len, model_name_string
+
+def setup_prediction_output(output_folder: str) -> tuple:
+    """
+    Prepare CSV file and writer for saving prediction logs.
+
+    Args:
+        output_folder (str): Folder path where predictions will be saved
+
+    Returns:
+        tuple: (predict_file, csv_writer)
+    """
+    predict_file = open(
+        get_output_path(output_folder, f"predictions-{time.strftime('%Y%m%d-%H%M%S')}.csv"),
+        'a',
+        newline=''
+    )
+    predict_file.truncate(0)
+    predict_writer = csv.DictWriter(predict_file, fieldnames=PREDICT_HEADER)
+    predict_writer.writeheader()
+    predict_file.flush()
+    return predict_file, predict_writer
