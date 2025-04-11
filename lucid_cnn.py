@@ -22,7 +22,7 @@ import tensorflow as tf
 import numpy as np
 import os
 import csv, glob, time, pyshark, sys
-from utils.constants import SEED, PATIENCE, VAL_HEADER, PREDICT_HEADER, HYPERPARAM_GRID 
+from utils.constants import PREDICT_HEADER 
 from utils.preprocessing import normalize_and_padding
 from utils.minmax_utils import static_min_max
 from data.data_loader import load_dataset, count_packets_in_dataset
@@ -31,16 +31,11 @@ from data.flow_utils import dataset_to_list_of_fragments
 from data.live_process import process_live_traffic
 from core.args import get_args
 from core.trainer import run_training
+from core.predictor import run_batch_prediction
 
 config = tf.compat.v1.ConfigProto(inter_op_parallelism_threads=1)
 
 from tensorflow.keras.models import load_model
-from sklearn.metrics import f1_score, accuracy_score
-from sklearn.utils import shuffle
-from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
-from scikeras.wrappers import KerasClassifier
-
-from sklearn.model_selection import GridSearchCV
 
 import tensorflow.keras.backend as K
 
@@ -67,59 +62,7 @@ def main(argv):
         run_training(args, OUTPUT_FOLDER)
 
     if args.predict is not None:
-        predict_file = open(
-            get_output_path(OUTPUT_FOLDER, f"predictions-{time.strftime('%Y%m%d-%H%M%S')}.csv"),
-            'a',
-            newline=''
-        )
-        predict_file.truncate(0)  # clean the file content (as we open the file in append mode)
-        predict_writer = csv.DictWriter(predict_file, fieldnames=PREDICT_HEADER)
-        predict_writer.writeheader()
-        predict_file.flush()
-
-        iterations = args.iterations
-
-        dataset_filelist = glob.glob(args.predict + "/*test.hdf5")
-
-        if args.model is not None:
-            model_list = [args.model]
-        else:
-            model_list = glob.glob(args.predict + "/*.h5")
-
-        for model_path in model_list:
-            model_filename = model_path.split('/')[-1].strip()
-            filename_prefix = model_filename.split('-')[0].strip() + '-' + model_filename.split('-')[1].strip() + '-'
-            model_name_string = model_filename.split(filename_prefix)[1].strip().split('.')[0].strip()
-            model = load_model(model_path)
-
-            # warming up the model (necessary for the GPU)
-            warm_up_file = dataset_filelist[0]
-            filename = warm_up_file.split('/')[-1].strip()
-            if filename_prefix in filename:
-                X, Y = load_dataset(warm_up_file)
-                Y_pred = np.squeeze(model.predict(X, batch_size=2048) > 0.5)
-
-            for dataset_file in dataset_filelist:
-                filename = dataset_file.split('/')[-1].strip()
-                if filename_prefix in filename:
-                    X, Y = load_dataset(dataset_file)
-                    [packets] = count_packets_in_dataset([X])
-
-                    Y_pred = None
-                    Y_true = Y
-                    avg_time = 0
-                    for iteration in range(iterations):
-                        pt0 = time.time()
-                        Y_pred = np.squeeze(model.predict(X, batch_size=2048) > 0.5)
-                        pt1 = time.time()
-                        avg_time += pt1 - pt0
-
-                    avg_time = avg_time / iterations
-
-                    report_results(np.squeeze(Y_true), Y_pred, packets, model_name_string, filename, avg_time,predict_writer)
-                    predict_file.flush()
-
-        predict_file.close()
+        run_batch_prediction(args, OUTPUT_FOLDER)
 
     if args.predict_live is not None:
         predict_file = open(
