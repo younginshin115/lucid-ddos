@@ -21,14 +21,15 @@
 import tensorflow as tf
 import numpy as np
 import os
-import csv
-from utils.constants import SEED, PATIENCE, DEFAULT_EPOCHS, VAL_HEADER, PREDICT_HEADER, HYPERPARAM_GRID 
+import csv, glob, time, pyshark, sys
+from utils.constants import SEED, PATIENCE, VAL_HEADER, PREDICT_HEADER, HYPERPARAM_GRID 
 from utils.preprocessing import normalize_and_padding
 from utils.minmax_utils import static_min_max
 from data.data_loader import load_dataset, count_packets_in_dataset
 from data.parser import parse_labels
 from data.flow_utils import dataset_to_list_of_fragments
 from data.live_process import process_live_traffic
+from train.args import get_args
 
 config = tf.compat.v1.ConfigProto(inter_op_parallelism_threads=1)
 
@@ -56,44 +57,8 @@ from utils.path_utils import create_output_subfolder, get_output_path
 OUTPUT_FOLDER = create_output_subfolder()
 
 def main(argv):
-    help_string = 'Usage: python3 lucid_cnn.py --train <dataset_folder> -e <epocs>'
-
-    parser = argparse.ArgumentParser(
-        description='DDoS attacks detection with convolutional neural networks',
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-
-    parser.add_argument('-t', '--train', nargs='+', type=str,
-                        help='Start the training process')
-
-    parser.add_argument('-e', '--epochs', default=DEFAULT_EPOCHS, type=int,
-                        help='Training iterations')
-
-    parser.add_argument('-cv', '--cross_validation', default=0, type=int,
-                        help='Number of folds for cross-validation (default 0)')
-
-    parser.add_argument('-a', '--attack_net', default=None, type=str,
-                        help='Subnet of the attacker (used to compute the detection accuracy)')
-
-    parser.add_argument('-v', '--victim_net', default=None, type=str,
-                        help='Subnet of the victim (used to compute the detection accuracy)')
-
-    parser.add_argument('-p', '--predict', nargs='?', type=str,
-                        help='Perform a prediction on pre-preprocessed data')
-
-    parser.add_argument('-pl', '--predict_live', nargs='?', type=str,
-                        help='Perform a prediction on live traffic')
-
-    parser.add_argument('-i', '--iterations', default=1, type=int,
-                        help='Predict iterations')
-
-    parser.add_argument('-m', '--model', type=str,
-                        help='File containing the model')
-
-    parser.add_argument('-y', '--dataset_type', default=None, type=str,
-                        help='Type of the dataset. Available options are: DOS2017, DOS2018, DOS2019, SYN2020')
-
-    args = parser.parse_args()
-
+    args = get_args()
+    
     if os.path.isdir(OUTPUT_FOLDER) == False:
         os.mkdir(OUTPUT_FOLDER)
 
