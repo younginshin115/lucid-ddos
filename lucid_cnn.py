@@ -17,44 +17,56 @@
 #Sample commands
 # Training: python3 lucid_cnn.py --train ./sample-dataset/  --epochs 100 -cv 5
 # Testing: python3  lucid_cnn.py --predict ./sample-dataset/ --model ./sample-dataset/10t-10n-SYN2020-LUCID.h5
-
-import tensorflow as tf
 import os
 import sys
+import tensorflow as tf
+import tensorflow.keras.backend as K
+
 from core.args import get_args
 from core.trainer import run_training
 from core.predictor import run_batch_prediction
 from core.live_predictor import run_live_prediction
-
-config = tf.compat.v1.ConfigProto(inter_op_parallelism_threads=1)
-
-import tensorflow.keras.backend as K
-
 from utils.seed_utils import set_seed
-set_seed()
-
-K.set_image_data_format('channels_last')
-tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
-config.gpu_options.allow_growth = True  # dynamically grow the memory used on the GPU
-#config.log_device_placement = True  # to log device placement (on which device the operation ran)
-
 from utils.path_utils import create_output_subfolder
-OUTPUT_FOLDER = create_output_subfolder()
+
+def setup_tensorflow_environment():
+    """
+    Configure TensorFlow backend settings (GPU memory, logging, etc.)
+    """
+    config = tf.compat.v1.ConfigProto(inter_op_parallelism_threads=1)
+    config.gpu_options.allow_growth = True  # dynamic GPU memory allocation
+    tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
+    K.set_image_data_format('channels_last')
+    set_seed()
+
+def prepare_output_folder() -> str:
+    """
+    Create and return the experiment output folder
+    """
+    output_folder = create_output_subfolder()
+    if not os.path.isdir(output_folder):
+        os.mkdir(output_folder)
+    return output_folder
+
+def run_mode(args, output_folder):
+    """
+    Execute based on provided CLI arguments.
+    """
+    if args.train:
+        run_training(args, output_folder)
+    elif args.predict:
+        run_batch_prediction(args, output_folder)
+    elif args.predict_live:
+        run_live_prediction(args, output_folder)
+    else:
+        print("No valid mode selected. Use --train, --predict, or --predict_live.")
+        sys.exit(1)
 
 def main(argv):
+    setup_tensorflow_environment()
     args = get_args()
-    
-    if os.path.isdir(OUTPUT_FOLDER) == False:
-        os.mkdir(OUTPUT_FOLDER)
-
-    if args.train is not None:
-        run_training(args, OUTPUT_FOLDER)
-
-    if args.predict is not None:
-        run_batch_prediction(args, OUTPUT_FOLDER)
-
-    if args.predict_live is not None:
-        run_live_prediction(args, OUTPUT_FOLDER)
+    output_folder = prepare_output_folder()
+    run_mode(args, output_folder)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
