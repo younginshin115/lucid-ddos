@@ -1,3 +1,23 @@
+# Copyright (c) 2022 @ FBK - Fondazione Bruno Kessler
+# Author: Roberto Doriguzzi-Corin
+# Project: LUCID: A Practical, Lightweight Deep Learning Solution for DDoS Attack Detection
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+#Sample commands
+# Training: python3 lucid_cnn.py --train ./sample-dataset/  --epochs 100 -cv 5
+# Testing: python3  lucid_cnn.py --predict ./sample-dataset/ --model ./sample-dataset/10t-10n-SYN2020-LUCID.h5
+
 import os
 import glob
 import csv
@@ -10,8 +30,9 @@ from sklearn.metrics import f1_score, accuracy_score
 
 from model.builder import model_builder
 from data.data_loader import load_dataset
-from utils.constants import SEED, PATIENCE, VAL_HEADER, HYPERPARAM_GRID
+from utils.constants import SEED, PATIENCE, HYPERPARAM_GRID
 from utils.path_utils import get_model_basename, get_model_path
+from utils.logging_utils import save_metrics_to_csv
 
 def build_model(input_shape, kernel_col, model_name, args):
     return KerasClassifier(
@@ -69,6 +90,14 @@ def evaluate_model(model, X_val, Y_val):
         "samples": Y_pred.shape[0]
     }
 
+def load_and_shuffle_dataset(train_path, val_path):
+    X_train, Y_train = load_dataset(train_path)
+    X_val, Y_val = load_dataset(val_path)
+    return (
+        shuffle(X_train, Y_train, random_state=SEED),
+        shuffle(X_val, Y_val, random_state=SEED)
+    )
+
 def run_training(args, output_folder):
     subfolders = glob.glob(args.train[0] + "/*/")
     if len(subfolders) == 0: # for the case in which the is only one folder, and this folder is args.dataset_folder[0]
@@ -80,11 +109,7 @@ def run_training(args, output_folder):
         dataset_folder = dataset_folder.replace("//", "/") # remove double slashes when needed
         print("\nCurrent dataset folder:", dataset_folder)
 
-        X_train, Y_train = load_dataset(dataset_folder + "/*-train.hdf5")
-        X_val, Y_val = load_dataset(dataset_folder + "/*-val.hdf5")
-
-        X_train, Y_train = shuffle(X_train, Y_train, random_state=SEED)
-        X_val, Y_val = shuffle(X_val, Y_val, random_state=SEED)
+        (X_train, Y_train), (X_val, Y_val) = load_and_shuffle_dataset(dataset_folder + "/*-train.hdf5", dataset_folder + "/*-val.hdf5")
 
         # 파라미터 추출
         train_file = glob.glob(dataset_folder + "/*-train.hdf5")[0]
@@ -107,21 +132,14 @@ def run_training(args, output_folder):
 
         metrics = evaluate_model(trained_model, X_val, Y_val)
         
-        # 결과 저장
-        with open(best_model_path + ".csv", 'w', newline='') as val_file:
-            val_writer = csv.DictWriter(val_file, fieldnames=VAL_HEADER)
-            val_writer.writeheader()
+        save_metrics_to_csv(
+            best_model_path + ".csv",
+            model_name,
+            metrics,
+            used_hyperparams,
+            glob.glob(dataset_folder + "/*-val.hdf5")[0]
+        )
 
-            row = {
-                'Model': model_name,
-                'Samples': metrics['samples'],
-                'Accuracy': f"{metrics['accuracy']:05.4f}",
-                'F1Score': f"{metrics['f1']:05.4f}",
-                'Hyper-parameters': used_hyperparams,
-                'Validation Set': glob.glob(dataset_folder + "/*-val.hdf5")[0]
-            }
-
-            val_writer.writerow(row)
 
         print(f"[✓] Best parameters: {used_hyperparams}")
         print(f"[✓] Saved model to: {best_model_path}.h5")
