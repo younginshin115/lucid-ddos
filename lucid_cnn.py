@@ -29,7 +29,8 @@ from data.data_loader import load_dataset, count_packets_in_dataset
 from data.parser import parse_labels
 from data.flow_utils import dataset_to_list_of_fragments
 from data.live_process import process_live_traffic
-from train.args import get_args
+from core.args import get_args
+from core.trainer import run_training
 
 config = tf.compat.v1.ConfigProto(inter_op_parallelism_threads=1)
 
@@ -63,141 +64,7 @@ def main(argv):
         os.mkdir(OUTPUT_FOLDER)
 
     if args.train is not None:
-        subfolders = glob.glob(args.train[0] +"/*/")
-        if len(subfolders) == 0: # for the case in which the is only one folder, and this folder is args.dataset_folder[0]
-            subfolders = [args.train[0] + "/"]
-        else:
-            subfolders = sorted(subfolders)
-        for full_path in subfolders:
-            full_path = full_path.replace("//", "/")  # remove double slashes when needed
-            folder = full_path.split("/")[-2]
-            dataset_folder = full_path
-            X_train, Y_train = load_dataset(dataset_folder + "/*" + '-train.hdf5')
-            X_val, Y_val = load_dataset(dataset_folder + "/*" + '-val.hdf5')
-
-            X_train, Y_train = shuffle(X_train, Y_train, random_state=SEED)
-            X_val, Y_val = shuffle(X_val, Y_val, random_state=SEED)
-
-            # get the time_window and the flow_len from the filename
-            train_file = glob.glob(dataset_folder + "/*" + '-train.hdf5')[0]
-            filename = train_file.split('/')[-1].strip()
-            time_window = int(filename.split('-')[0].strip().replace('t', ''))
-            max_flow_len = int(filename.split('-')[1].strip().replace('n', ''))
-            dataset_name = filename.split('-')[2].strip()
-
-            print ("\nCurrent dataset folder: ", dataset_folder)
-
-            model_name = dataset_name + "-LUCID"
-                        
-            keras_classifier = KerasClassifier(
-                model=model_builder,
-                model__model_name=model_name,
-                model__input_shape=X_train.shape[1:],
-                model__kernel_col=X_train.shape[2],
-                epochs=args.epochs,
-                verbose=1,
-                optimizer="adam",
-                loss="binary_crossentropy",
-                metrics=["accuracy"],
-                compile=True  # 🔥 이거 반드시 명시
-            )
-
-            es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=PATIENCE)
-            
-            model_basename = get_model_basename(time_window, max_flow_len, model_name)
-            best_model_filename = get_model_path(output_folder, model_basename)
-
-            mc = ModelCheckpoint(
-                filepath=best_model_filename + ".h5",
-                monitor="val_accuracy",
-                mode="max",
-                verbose=1,
-                save_best_only=True
-            )
-
-            if args.cross_validation >= 2:
-                print(f"Cross-validation enabled with {args.cross_validation} folds.")
-
-                rnd_search_cv = GridSearchCV(
-                    estimator=keras_classifier,
-                    param_grid=HYPERPARAM_GRID,
-                    cv=args.cross_validation,
-                    refit=True,
-                    return_train_score=True
-                )
-
-                rnd_search_cv.fit(
-                    X_train, Y_train,
-                    callbacks=[es, mc],
-                    validation_data=(X_val, Y_val)
-                )
-
-                best_model = rnd_search_cv.best_estimator_.model_
-                best_model.save(best_model_filename + '.h5')
-
-                Y_pred_val = (best_model.predict(X_val) > 0.5)
-            else:
-                print("Cross-validation disabled. Running single training cycle...")
-
-                keras_classifier.fit(
-                    X_train, Y_train,
-                    callbacks=[es, mc],
-                    validation_data=(X_val, Y_val)
-                )
-
-                keras_classifier.model_.save(best_model_filename + '.h5')
-                Y_pred_val = (keras_classifier.predict(X_val) > 0.5)
-
-            # With refit=True (default) GridSearchCV refits the model on the whole training set (no folds) with the best
-            # hyper-parameters and makes the resulting model available as rnd_search_cv.best_estimator_.model
-            if args.cross_validation >= 2:
-                best_model = rnd_search_cv.best_estimator_.model_
-            else:
-                best_model = keras_classifier.model_
-
-
-            # We overwrite the checkpoint models with the one trained on the whole training set (not only k-1 folds)
-            best_model.save(best_model_filename + '.h5')
-
-            # Alternatively, to save time, one could set refit=False and load the best model from the filesystem to test its performance
-            #best_model = load_model(best_model_filename + '.h5')
-
-            Y_pred_val = (best_model.predict(X_val) > 0.5)
-            Y_true_val = Y_val.reshape((Y_val.shape[0], 1))
-            f1_score_val = f1_score(Y_true_val, Y_pred_val)
-            accuracy = accuracy_score(Y_true_val, Y_pred_val)
-
-            # save best model performance on the validation set
-            val_file = open(best_model_filename + '.csv', 'w', newline='')
-            val_file.truncate(0)  # clean the file content (as we open the file in append mode)
-            val_writer = csv.DictWriter(val_file, fieldnames=VAL_HEADER)
-            val_writer.writeheader()
-            val_file.flush()
-            
-            if args.cross_validation >= 2:
-                hyperparams_used = rnd_search_cv.best_params_
-            else:
-                hyperparams_used = {
-                    "optimizer": "adam",
-                    "loss": "binary_crossentropy",
-                    "metrics": ["accuracy"],
-                    "epochs": args.epochs
-                }
-            row = {
-                'Model': model_name,
-                'Samples': Y_pred_val.shape[0],
-                'Accuracy': '{:05.4f}'.format(accuracy),
-                'F1Score': '{:05.4f}'.format(f1_score_val),
-                'Hyper-parameters': hyperparams_used,
-                'Validation Set': glob.glob(dataset_folder + "/*" + '-val.hdf5')[0]
-            }
-            val_writer.writerow(row)
-            val_file.close()
-
-
-            print("Best parameters: ", rnd_search_cv.best_params_) if args.cross_validation >= 2 else print("Default parameters used.")
-            print("Best model path: ", best_model_filename)
-            print("F1 Score of the best model on the validation set: ", f1_score_val)
+        run_training(args, OUTPUT_FOLDER)
 
     if args.predict is not None:
         predict_file = open(
