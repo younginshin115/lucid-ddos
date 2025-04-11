@@ -52,7 +52,7 @@ def run_batch_prediction(args, output_folder):
         model = load_model(model_path)
 
         # Perform a dummy forward pass to initialize GPU memory, etc.
-        warm_up_model(model, dataset_filelist[0])
+        warm_up_model(model, sample_file=dataset_filelist[0])
 
         # Extract model name from filename (e.g., 'SYN2020-LUCID')
         model_name_string = model_filename.split(filename_prefix)[1].strip().split('.')[0].strip()

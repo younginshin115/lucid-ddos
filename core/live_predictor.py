@@ -15,7 +15,8 @@ from utils.eval_logger import report_results
 from utils.prediction_utils import (
     load_model,
     extract_model_metadata,
-    setup_prediction_output
+    setup_prediction_output,
+    warm_up_model
 )
 
 def run_live_prediction(args, output_folder: str):
@@ -53,6 +54,11 @@ def run_live_prediction(args, output_folder: str):
 
     model = load_model(args.model)
     time_window, max_flow_len, model_name_string = extract_model_metadata(args.model)
+    
+    # Warm-up GPU using dummy input (only once before prediction loop)
+    input_shape = (time_window, max_flow_len, 1)
+    warm_up_model(model, input_shape=input_shape)
+    
     mins, maxs = static_min_max(time_window)
 
     # Prediction loop

@@ -1,11 +1,14 @@
 import os
 import glob
-import time
 import csv
+import time
+import numpy as np
 from tensorflow.keras.models import load_model as keras_load_model
-from data.data_loader import load_dataset
-from utils.path_utils import get_output_path
+
 from utils.constants import PREDICT_HEADER
+from utils.path_utils import get_output_path
+from data.data_loader import load_dataset
+
 
 def load_model(model_path: str):
     """
@@ -37,16 +40,27 @@ def extract_filename_prefix(model_filename: str) -> str:
     return f"{parts[0].strip()}-{parts[1].strip()}-"
 
 
-def warm_up_model(model, sample_file: str):
+def warm_up_model(model, sample_file: str = None, input_shape: tuple = None):
     """
-    Perform a warm-up forward pass using the first sample to trigger GPU memory allocation.
+    Perform a warm-up forward pass to initialize GPU memory and avoid first-time latency.
 
     Args:
         model (keras.Model): Loaded Keras model
-        sample_file (str): Path to an HDF5 file used for warm-up
+        sample_file (str, optional): Path to HDF5 file to load dummy input from
+        input_shape (tuple, optional): Shape of a dummy input (e.g., (time_window, flow_len, 1))
+
+    Raises:
+        ValueError: If neither sample_file nor input_shape is provided
     """
-    X, _ = load_dataset(sample_file)
-    _ = model.predict(X[:1], batch_size=1)
+    if sample_file:
+        X, _ = load_dataset(sample_file)
+        dummy_input = X[:1]
+    elif input_shape:
+        dummy_input = np.zeros((1,) + input_shape)  # Add batch dimension
+    else:
+        raise ValueError("Either sample_file or input_shape must be provided.")
+
+    _ = model.predict(dummy_input, batch_size=1)
 
 
 def get_dataset_files(dataset_folder: str) -> list:
@@ -60,6 +74,7 @@ def get_dataset_files(dataset_folder: str) -> list:
         list: List of test file paths
     """
     return glob.glob(os.path.join(dataset_folder, "*test.hdf5"))
+
 
 def extract_model_metadata(model_path: str):
     """
@@ -78,6 +93,7 @@ def extract_model_metadata(model_path: str):
     model_name_string = model_filename.split(filename_prefix)[1].strip().split('.')[0].strip()
     return time_window, max_flow_len, model_name_string
 
+
 def setup_prediction_output(output_folder: str) -> tuple:
     """
     Prepare CSV file and writer for saving prediction logs.
@@ -88,6 +104,7 @@ def setup_prediction_output(output_folder: str) -> tuple:
     Returns:
         tuple: (predict_file, csv_writer)
     """
+
     predict_file = open(
         get_output_path(output_folder, f"predictions-{time.strftime('%Y%m%d-%H%M%S')}.csv"),
         'a',
