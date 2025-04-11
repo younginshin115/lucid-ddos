@@ -14,13 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#Sample commands
-# Training: python3 lucid_cnn.py --train ./sample-dataset/  --epochs 100 -cv 5
-# Testing: python3  lucid_cnn.py --predict ./sample-dataset/ --model ./sample-dataset/10t-10n-SYN2020-LUCID.h5
-
-import os
 import glob
-import csv
 
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from scikeras.wrappers import KerasClassifier
@@ -33,6 +27,7 @@ from data.data_loader import load_dataset
 from utils.constants import SEED, PATIENCE, HYPERPARAM_GRID
 from utils.path_utils import get_model_basename, get_model_path
 from utils.logging_utils import save_metrics_to_csv
+from core.helpers import parse_training_filename
 
 def build_model(input_shape, kernel_col, model_name, args):
     return KerasClassifier(
@@ -113,10 +108,8 @@ def run_training(args, output_folder):
 
         # 파라미터 추출
         train_file = glob.glob(dataset_folder + "/*-train.hdf5")[0]
-        filename = os.path.basename(train_file)
-        time_window = int(filename.split('-')[0].replace('t', ''))
-        max_flow_len = int(filename.split('-')[1].replace('n', ''))
-        dataset_name = filename.split('-')[2]
+        time_window, max_flow_len, dataset_name = parse_training_filename(train_file)
+
 
         print ("\nCurrent dataset folder: ", dataset_folder)
 
