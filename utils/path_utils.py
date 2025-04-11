@@ -69,3 +69,9 @@ def get_output_path(output_folder: str, filename: str) -> str:
         str: Full path to the target file inside the output folder
     """
     return os.path.join(output_folder, filename)
+
+def get_model_basename(time_window: int, max_flow_len: int, model_name: str) -> str:
+    return f"{time_window}t-{max_flow_len}n-{model_name}"
+
+def get_model_path(output_folder: str, model_basename: str) -> str:
+    return os.path.join(output_folder, model_basename)

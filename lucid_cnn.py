@@ -53,7 +53,7 @@ config.gpu_options.allow_growth = True  # dynamically grow the memory used on th
 from model.builder import model_builder
 from utils.eval_logger import report_results
 
-from utils.path_utils import create_output_subfolder, get_output_path
+from utils.path_utils import create_output_subfolder, get_output_path, get_model_basename, get_model_path
 OUTPUT_FOLDER = create_output_subfolder()
 
 def main(argv):
@@ -104,8 +104,8 @@ def main(argv):
 
             es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=PATIENCE)
             
-            model_basename = f"{time_window}t-{max_flow_len}n-{model_name}"
-            best_model_filename = get_output_path(OUTPUT_FOLDER, model_basename)
+            model_basename = get_model_basename(time_window, max_flow_len, model_name)
+            best_model_filename = get_model_path(output_folder, model_basename)
 
             mc = ModelCheckpoint(
                 filepath=best_model_filename + ".h5",
