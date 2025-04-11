@@ -17,6 +17,14 @@
 import argparse
 
 def get_usage_examples():
+    """
+    Return usage examples for the dataset parser CLI.
+
+    These examples are shown in the help message and validation errors.
+
+    Returns:
+        str: Multiline string with example usage commands.
+    """
     return (
         "Usage examples:\n"
         "  python3 lucid_dataset_parser.py --dataset_type SYN2020 --dataset_folder ./sample-dataset/ "
@@ -25,6 +33,14 @@ def get_usage_examples():
     )
 
 def get_dataset_parser():
+    """
+    Create and return an argument parser for lucid_dataset_parser.py.
+
+    Defines all CLI options used for dataset preprocessing, pcap parsing, and balancing.
+
+    Returns:
+        argparse.ArgumentParser: Configured argument parser.
+    """
     parser = argparse.ArgumentParser(
         description=get_usage_examples(),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -76,6 +92,15 @@ def get_dataset_parser():
     return parser
 
 def validate_args(args, parser):
+    """
+    Perform validation on argument combinations for lucid_dataset_parser.py.
+
+    Ensures at least one data source is specified and required fields are present.
+
+    Args:
+        args (argparse.Namespace): Parsed CLI arguments.
+        parser (argparse.ArgumentParser): Parser object used to print errors.
+    """
     if not any([args.dataset_folder, args.preprocess_folder, args.preprocess_file, args.balance_folder]):
         parser.error("Please specify an input source.\n\n" + get_usage_examples())
 

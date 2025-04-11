@@ -28,26 +28,40 @@ from utils.constants import MAX_FLOW_LEN, TIME_WINDOW, TRAIN_SIZE
 from utils.logging_utils import write_log, get_timestamp
 
 def parse_dataset_from_pcap(args, command_options):
+    """
+    Parse and extract flows from .pcap files using multiprocessing.
+
+    The resulting flows are saved as a .data pickle file and statistics are logged.
+
+    Args:
+        args (argparse.Namespace): Parsed CLI arguments
+        command_options (str): Full string of command-line options (for logging)
+    """
     manager = Manager()
 
+    # Determine output folder
     if args.output_folder is not None and os.path.isdir(args.output_folder[0]):
         output_folder = args.output_folder[0]
     else:
         output_folder = args.dataset_folder[0]
 
     filelist = glob.glob(args.dataset_folder[0]+ '/*.pcap')
+
+    # Load label definitions
     in_labels = parse_labels(dataset_type=args.dataset_type[0], label=args.label)
 
+    # Determine preprocessing parameters
     max_flow_len = int(args.packets_per_flow[0]) if args.packets_per_flow else MAX_FLOW_LEN
     time_window = float(args.time_window[0]) if args.time_window else TIME_WINDOW
     dataset_id = str(args.dataset_id[0]) if args.dataset_id else str(args.dataset_type[0])
-    # Only first value of --traffic_type is used (e.g., "all", "ddos", "benign")
     traffic_type = str(args.traffic_type[0]) if args.traffic_type else 'all'
 
     process_list = []
     flows_list = []
 
     start_time = time.time()
+
+    # Start multiprocessed pcap parsing
     for file in filelist:
         flows = manager.list()
         p = Process(
@@ -57,10 +71,8 @@ def parse_dataset_from_pcap(args, command_options):
         process_list.append(p)
         flows_list.append(flows)
 
-    for p in process_list:
-        p.start()
-    for p in process_list:
-        p.join()
+    for p in process_list: p.start()
+    for p in process_list: p.join()
 
     np.seterr(divide='ignore', invalid='ignore')
 
@@ -70,15 +82,18 @@ def parse_dataset_from_pcap(args, command_options):
         print("ERROR: No traffic flows. Please check dataset folder and .pcap files.")
         exit(1)
 
+    # Aggregate flows from all files
     for results in flows_list[1:]:
         preprocessed_flows += list(results)
 
+    # Save flows as .data
     filename = f"{int(time_window)}t-{max_flow_len}n-{dataset_id}-preprocess"
     output_file = os.path.join(output_folder, filename).replace("//", "/")
 
     with open(output_file + '.data', 'wb') as filehandle:
         pickle.dump(preprocessed_flows, filehandle)
 
+    # Count and log flow statistics
     (total_flows, ddos_flows, benign_flows),  (total_fragments, ddos_fragments, benign_fragments) = count_flows(preprocessed_flows)
 
     log_message  = time.strftime("%Y-%m-%d %H:%M:%S") + " | dataset_type:" + args.dataset_type[0] + \
@@ -89,8 +104,16 @@ def parse_dataset_from_pcap(args, command_options):
     write_log(log_message, output_folder, get_timestamp())
 
 def preprocess_dataset_from_data(args, command_options):
+    """
+    Load .data files, balance the dataset, normalize flows, and split into train/val/test.
 
-    # 파일 목록과 output 디렉토리 결정
+    Saves each split as an HDF5 file and logs statistics such as DDoS ratios and sample counts.
+
+    Args:
+        args (argparse.Namespace): Parsed CLI arguments
+        command_options (str): Full command string used, for logging purposes
+    """
+    # Determine .data files and output folder
     if args.preprocess_folder:
         filelist = glob.glob(args.preprocess_folder[0] + '/*.data')
         output_folder = args.output_folder[0] if args.output_folder else args.preprocess_folder[0]
@@ -98,7 +121,7 @@ def preprocess_dataset_from_data(args, command_options):
         filelist = args.preprocess_file
         output_folder = args.output_folder[0] if args.output_folder else os.path.dirname(os.path.realpath(filelist[0]))
 
-    # 파일명에서 time_window, flow_len, dataset_id 추출
+    # Extract time_window, flow_len, dataset_id from filenames (consistency check)
     time_window, max_flow_len, dataset_id = None, None, None
     for file in filelist:
         parts = os.path.basename(file).split('-')
@@ -107,53 +130,52 @@ def preprocess_dataset_from_data(args, command_options):
         current_dataset_id = parts[2]
 
         if time_window and time_window != current_time_window:
-            print("Inconsistent time windows!!"); exit()
+            print("Inconsistent time windows!"); exit()
         if max_flow_len and max_flow_len != current_flow_len:
-            print("Inconsistent flow lengths!!"); exit()
+            print("Inconsistent flow lengths!"); exit()
 
         time_window = current_time_window
         max_flow_len = current_flow_len
         dataset_id = dataset_id if dataset_id and dataset_id == current_dataset_id else "IDS201X"
 
-    # .data 로드
+    # Load all .data files
     preprocessed_flows = []
     for file in filelist:
         with open(file, 'rb') as fh:
             preprocessed_flows += pickle.load(fh)
 
-    # 밸런싱 + 샘플 수 제한
+    # Balance and limit sample count
     preprocessed_flows, _, _ = balance_dataset(preprocessed_flows, args.samples)
 
     if not preprocessed_flows:
         print("Empty dataset after balancing.")
         exit()
 
-    # split
+    # Split into train, val, test
     train, test = train_test_split(preprocessed_flows, train_size=TRAIN_SIZE)
     train, val = train_test_split(train, train_size=TRAIN_SIZE)
 
-    # flatten
+    # Convert flows to 2D fragments and labels
     X_train, y_train, _ = dataset_to_list_of_fragments(train)
     X_val, y_val, _ = dataset_to_list_of_fragments(val)
     X_test, y_test, _ = dataset_to_list_of_fragments(test)
 
-    # normalize + padding
+    # Normalize and pad inputs
     mins, maxs = static_min_max(time_window)
     norm_X_train = np.array(normalize_and_padding(X_train, mins, maxs, max_flow_len))
     norm_X_val = np.array(normalize_and_padding(X_val, mins, maxs, max_flow_len))
     norm_X_test = np.array(normalize_and_padding(X_test, mins, maxs, max_flow_len))
 
-    y_train = np.array(y_train)
-    y_val = np.array(y_val)
-    y_test = np.array(y_test)
+    y_train, y_val, y_test = np.array(y_train), np.array(y_val), np.array(y_test)
 
-    # 저장
+    # Save as HDF5
     filename_prefix = f"{time_window}t-{max_flow_len}n-{dataset_id}-dataset"
     for split, X, y in zip(["train", "val", "test"], [norm_X_train, norm_X_val, norm_X_test], [y_train, y_val, y_test]):
         with h5py.File(os.path.join(output_folder, f"{filename_prefix}-{split}.hdf5"), 'w') as hf:
             hf.create_dataset('set_x', data=X)
             hf.create_dataset('set_y', data=y)
 
+    # Log final dataset summary
     total = len(y_train) + len(y_val) + len(y_test)
     ddos = np.count_nonzero(np.concatenate([y_train, y_val, y_test]))
 
@@ -161,8 +183,18 @@ def preprocess_dataset_from_data(args, command_options):
     write_log(log_message, output_folder, get_timestamp())
 
 def merge_balanced_datasets(args, command_options):
+    """
+    Merge multiple balanced datasets (HDF5 format) into a unified dataset with consistent sample size.
+
+    Ensures all splits (train, val, test) are truncated to the same minimum sample size and saves the result.
+
+    Args:
+        args (argparse.Namespace): Parsed CLI arguments
+        command_options (str): Full command string used, for logging purposes
+    """
     output_folder = args.output_folder[0] if args.output_folder else args.balance_folder[0]
 
+    # Collect all dataset files
     datasets = []
     for folder in args.balance_folder:
         datasets += glob.glob(os.path.join(folder, '*.hdf5'))
@@ -171,6 +203,7 @@ def merge_balanced_datasets(args, command_options):
     min_train, min_val, min_test = float('inf'), float('inf'), float('inf')
     output_prefix = None
 
+    # Group datasets by split and determine the minimum sample count per split
     for file in datasets:
         filename = os.path.basename(file)
         with h5py.File(file, 'r') as f:
@@ -199,6 +232,7 @@ def merge_balanced_datasets(args, command_options):
 
     final_X, final_y = {'train': None, 'val': None, 'test': None}, {'train': None, 'val': None, 'test': None}
 
+    # Trim all datasets to the same minimum size per split and stack together
     for split, file_dict, min_samples in [('train', train_files, min_train), ('val', val_files, min_val), ('test', test_files, min_test)]:
         for _, (X, Y) in file_dict.items():
             X_short = X[:min_samples]
@@ -206,12 +240,14 @@ def merge_balanced_datasets(args, command_options):
             final_X[split] = X_short if final_X[split] is None else np.vstack((final_X[split], X_short))
             final_y[split] = Y_short if final_y[split] is None else np.hstack((final_y[split], Y_short))
 
+    # Save the final merged datasets
     for split in ['train', 'val', 'test']:
         filename = f"{output_prefix}IDS201X-dataset-balanced-{split}.hdf5"
         with h5py.File(os.path.join(output_folder, filename), 'w') as hf:
             hf.create_dataset('set_x', data=final_X[split])
             hf.create_dataset('set_y', data=final_y[split])
 
+    # Count and log final statistics
     total_flows = sum(final_y[split].shape[0] for split in ['train', 'val', 'test'])
     ddos_flows = sum(np.count_nonzero(final_y[split]) for split in ['train', 'val', 'test'])
     benign_flows = total_flows - ddos_flows

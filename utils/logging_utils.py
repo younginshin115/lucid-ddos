@@ -17,9 +17,29 @@ def write_log(message: str, output_folder: str, prefix: str = ''):
         f.write(message + '\n')
 
 def get_timestamp():
+    """
+    Get the current timestamp in a human-readable format.
+
+    Returns:
+        str: Timestamp string formatted as 'YYYY-MM-DD HH:MM:SS'
+    """
     return time.strftime("%Y-%m-%d %H:%M:%S")
 
+
 def save_metrics_to_csv(csv_path, model_name, metrics, used_hyperparams, val_file_path):
+    """
+    Save evaluation metrics to a CSV file for record-keeping and analysis.
+
+    This writes a single row into a CSV file with model name, accuracy, F1 score,
+    number of samples, used hyperparameters, and validation set information.
+
+    Args:
+        csv_path (str): Full path to the CSV file to write
+        model_name (str): Name of the model (e.g., 'SYN2020-LUCID')
+        metrics (dict): Dictionary with keys 'accuracy', 'f1', 'samples'
+        used_hyperparams (dict): Dictionary of hyperparameters used for training
+        val_file_path (str): Path to the validation dataset used
+    """
     with open(csv_path, 'w', newline='') as val_file:
         val_writer = csv.DictWriter(val_file, fieldnames=VAL_HEADER)
         val_writer.writeheader()
@@ -31,4 +51,3 @@ def save_metrics_to_csv(csv_path, model_name, metrics, used_hyperparams, val_fil
             'Hyper-parameters': used_hyperparams,
             'Validation Set': val_file_path
         })
-        

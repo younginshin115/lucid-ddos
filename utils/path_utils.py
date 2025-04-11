@@ -71,7 +71,36 @@ def get_output_path(output_folder: str, filename: str) -> str:
     return os.path.join(output_folder, filename)
 
 def get_model_basename(time_window: int, max_flow_len: int, model_name: str) -> str:
+    """
+    Construct a base filename for a model using its parameters.
+
+    The format is: {time_window}t-{max_flow_len}n-{model_name}
+
+    This is helpful for keeping output files organized and consistently named
+    based on their experimental settings.
+
+    Args:
+        time_window (int): The time window used during dataset creation
+        max_flow_len (int): The maximum number of packets per flow
+        model_name (str): The name of the model or dataset (e.g., 'SYN2020-LUCID')
+
+    Returns:
+        str: A formatted base filename (e.g., '10t-20n-SYN2020-LUCID')
+    """
     return f"{time_window}t-{max_flow_len}n-{model_name}"
 
+
 def get_model_path(output_folder: str, model_basename: str) -> str:
+    """
+    Build the full path to a model output file based on its basename and output folder.
+
+    This does not add a file extension (e.g., '.h5') — it returns the base path to be extended as needed.
+
+    Args:
+        output_folder (str): The path to the directory where model files are saved
+        model_basename (str): The base filename of the model (e.g., '10t-20n-SYN2020-LUCID')
+
+    Returns:
+        str: The full path to the model file (e.g., './output/output_001_250410/10t-20n-SYN2020-LUCID')
+    """
     return os.path.join(output_folder, model_basename)

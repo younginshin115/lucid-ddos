@@ -22,6 +22,14 @@ import argparse
 from utils.constants import DEFAULT_EPOCHS
 
 def get_usage_examples():
+    """
+    Returns example usage strings for the CLI.
+
+    This is shown in the help message to guide users on how to use the script.
+
+    Returns:
+        str: A string containing example commands.
+    """
     return (
         "Usage examples:\n"
         "  python3 lucid_cnn.py --train ./datasets/SYN2020 -e 30\n"
@@ -30,6 +38,12 @@ def get_usage_examples():
     )
 
 def get_lucid_cnn_parser():
+    """
+    Create and configure the argument parser for lucid_cnn.py.
+
+    Returns:
+        argparse.ArgumentParser: The configured argument parser object.
+    """
     parser = argparse.ArgumentParser(
         description=get_usage_examples(),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -70,12 +84,28 @@ def get_lucid_cnn_parser():
     return parser
 
 def get_args():
+    """
+    Parse and validate command-line arguments.
+
+    Returns:
+        argparse.Namespace: Parsed arguments after validation.
+    """
     parser = get_lucid_cnn_parser()
     args = parser.parse_args()
     validate_args(args, parser)
     return args
 
 def validate_args(args, parser):
+    """
+    Perform logical validation on argument combinations.
+
+    This ensures mutually exclusive options are not used together and that required options
+    are provided in certain modes (e.g., predict_live requires --model and --dataset_type).
+
+    Args:
+        args (argparse.Namespace): The parsed arguments to validate
+        parser (argparse.ArgumentParser): The parser object (used for error reporting)
+    """
     usage = get_usage_examples()
 
     if not any([args.train, args.predict, args.predict_live]):
@@ -88,7 +118,7 @@ def validate_args(args, parser):
         parser.error("Cannot use --train and --predict_live at the same time.\n\n" + usage)
 
     if args.predict and not args.model:
-        print("⚠️  No model specified for --predict. All .h5 files in the folder will be used.")
+        print("No model specified for --predict. All .h5 files in the folder will be used.")
 
     if args.predict_live:
         if not args.model or not args.model.endswith(".h5"):

@@ -19,17 +19,27 @@ import glob
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from scikeras.wrappers import KerasClassifier
 from sklearn.model_selection import GridSearchCV
-from sklearn.utils import shuffle
 from sklearn.metrics import f1_score, accuracy_score
 
 from model.builder import model_builder
-from data.data_loader import load_dataset
-from utils.constants import SEED, PATIENCE, HYPERPARAM_GRID
+from utils.constants import PATIENCE, HYPERPARAM_GRID
 from utils.path_utils import get_model_basename, get_model_path
 from utils.logging_utils import save_metrics_to_csv
-from core.helpers import parse_training_filename
+from core.helpers import parse_training_filename, load_and_shuffle_dataset
 
 def build_model(input_shape, kernel_col, model_name, args):
+    """
+    Build a KerasClassifier wrapper using the model_builder function.
+
+    Args:
+        input_shape (tuple): Input shape of the training data (excluding batch size)
+        kernel_col (int): Number of kernel columns (used in model configuration)
+        model_name (str): Identifier for the model (used in filename, metadata)
+        args (argparse.Namespace): Parsed CLI arguments
+
+    Returns:
+        KerasClassifier: A compiled model wrapped for scikit-learn compatibility
+    """
     return KerasClassifier(
         model=model_builder,
         model__model_name=model_name,
@@ -44,6 +54,15 @@ def build_model(input_shape, kernel_col, model_name, args):
     )
 
 def get_callbacks(model_path):
+    """
+    Create training callbacks for early stopping and model checkpoint saving.
+
+    Args:
+        model_path (str): Base path to save the best model (without extension)
+
+    Returns:
+        list: List of Keras callbacks (EarlyStopping, ModelCheckpoint)
+    """
     es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=PATIENCE)
     mc = ModelCheckpoint(
         filepath=model_path + ".h5",
@@ -55,6 +74,21 @@ def get_callbacks(model_path):
     return [es, mc]
 
 def train_model(model, X_train, Y_train, X_val, Y_val, callbacks, args):
+    """
+    Train the given model with or without cross-validation.
+
+    Args:
+        model (KerasClassifier): The model to train
+        X_train (np.ndarray): Training input features
+        Y_train (np.ndarray): Training labels
+        X_val (np.ndarray): Validation input features
+        Y_val (np.ndarray): Validation labels
+        callbacks (list): List of Keras callbacks
+        args (argparse.Namespace): Parsed CLI arguments
+
+    Returns:
+        tuple: (trained_model, used_hyperparameters)
+    """
     if args.cross_validation >= 2:
         print(f"Cross-validation enabled with {args.cross_validation} folds.")
         cv = GridSearchCV(
@@ -77,6 +111,17 @@ def train_model(model, X_train, Y_train, X_val, Y_val, callbacks, args):
         }
 
 def evaluate_model(model, X_val, Y_val):
+    """
+    Evaluate the trained model on the validation set.
+
+    Args:
+        model (keras.Model): Trained Keras model
+        X_val (np.ndarray): Validation features
+        Y_val (np.ndarray): Ground-truth validation labels
+
+    Returns:
+        dict: Evaluation results including accuracy, F1 score, and sample count
+    """
     Y_pred = (model.predict(X_val) > 0.5)
     Y_true = Y_val.reshape((-1, 1))
     return {
@@ -85,17 +130,19 @@ def evaluate_model(model, X_val, Y_val):
         "samples": Y_pred.shape[0]
     }
 
-def load_and_shuffle_dataset(train_path, val_path):
-    X_train, Y_train = load_dataset(train_path)
-    X_val, Y_val = load_dataset(val_path)
-    return (
-        shuffle(X_train, Y_train, random_state=SEED),
-        shuffle(X_val, Y_val, random_state=SEED)
-    )
-
 def run_training(args, output_folder):
+    """
+    Main training loop for one or multiple datasets in a given folder.
+
+    Iterates over dataset subfolders, builds and trains models, evaluates them,
+    saves the best model and logs metrics to CSV.
+
+    Args:
+        args (argparse.Namespace): Parsed CLI arguments
+        output_folder (str): Folder path where models and logs will be saved
+    """
     subfolders = glob.glob(args.train[0] + "/*/")
-    if len(subfolders) == 0: # for the case in which the is only one folder, and this folder is args.dataset_folder[0]
+    if len(subfolders) == 0: 
         subfolders = [args.train[0] + "/"]
     else:
         subfolders = sorted(subfolders)
@@ -106,25 +153,26 @@ def run_training(args, output_folder):
 
         (X_train, Y_train), (X_val, Y_val) = load_and_shuffle_dataset(dataset_folder + "/*-train.hdf5", dataset_folder + "/*-val.hdf5")
 
-        # 파라미터 추출
+        # Extract hyperparameters from filename
         train_file = glob.glob(dataset_folder + "/*-train.hdf5")[0]
         time_window, max_flow_len, dataset_name = parse_training_filename(train_file)
-
 
         print ("\nCurrent dataset folder: ", dataset_folder)
 
         model_name = f"{dataset_name}-LUCID"
         model_basename = get_model_basename(time_window, max_flow_len, model_name)
         best_model_path = get_model_path(output_folder, model_basename)
-
+        
+        # Train model
         model = build_model(X_train.shape[1:], X_train.shape[2], model_name, args)
         callbacks = get_callbacks(best_model_path)
         trained_model, used_hyperparams = train_model(model, X_train, Y_train, X_val, Y_val, callbacks, args)
 
+        # Save model
         trained_model.save(best_model_path + ".h5")
 
+        # Evaluate and log results
         metrics = evaluate_model(trained_model, X_val, Y_val)
-        
         save_metrics_to_csv(
             best_model_path + ".csv",
             model_name,
@@ -132,7 +180,6 @@ def run_training(args, output_folder):
             used_hyperparams,
             glob.glob(dataset_folder + "/*-val.hdf5")[0]
         )
-
 
         print(f"[✓] Best parameters: {used_hyperparams}")
         print(f"[✓] Saved model to: {best_model_path}.h5")

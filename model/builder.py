@@ -1,8 +1,6 @@
-import tensorflow as tf
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Dense, Activation, Flatten, Conv2D
 from tensorflow.keras.layers import Dropout, GlobalMaxPooling2D
-from tensorflow.keras import regularizers
 import tensorflow.keras.backend as K
 from model.regularizer import get_regularizer
 
