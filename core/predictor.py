@@ -3,7 +3,7 @@ import csv
 import glob
 import time
 
-from core.prediction_runner import run_prediction_loop
+from core.prediction_runner import run_prediction_loop_preprocessed
 from data.data_loader import load_dataset, count_packets_in_dataset
 from utils.constants import PREDICT_HEADER
 from utils.path_utils import get_output_path
@@ -72,20 +72,15 @@ def run_batch_prediction(args, output_folder):
             # Load test dataset and count packets
             
             X, Y_true = load_dataset(dataset_file)
-            [packets] = count_packets_in_dataset([X])
 
             for _ in range(iterations):
-                run_prediction_loop(
-                    X_raw=X,
+                run_prediction_loop_preprocessed(
+                    X=X,
                     Y_true=Y_true,
                     model=model,
                     model_name=model_name_string,
                     source_name=os.path.basename(dataset_file),
-                    mins=mins,
-                    maxs=maxs,
-                    max_flow_len=max_flow_len,
-                    writer=predict_writer,
-                    packets=packets
+                    writer=predict_writer
                 )
             predict_file.flush()
 

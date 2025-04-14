@@ -60,3 +60,49 @@ def run_prediction_loop(
         prediction_time,
         writer
     )
+
+def run_prediction_loop_preprocessed(
+    X,
+    Y_true,
+    model,
+    model_name,
+    source_name,
+    writer,
+    packets=None
+):
+    """
+    Perform prediction on preprocessed (normalized + padded) dataset.
+
+    Args:
+        X (np.ndarray): Preprocessed input data, shape (N, T, F)
+        Y_true (np.ndarray or None): Ground-truth labels
+        model (keras.Model): Keras model to perform inference
+        model_name (str): Name of the model for logging
+        source_name (str): Name of the dataset file
+        writer (csv.DictWriter): CSV writer to log results
+        packets (int, optional): Total packet count for evaluation
+    """
+    # Count packets if not provided
+    if packets is None:
+        [packets] = count_packets_in_dataset([X])
+
+    # Run inference
+    pt0 = time.time()
+    Y_pred = np.squeeze(model.predict(X, batch_size=2048) > 0.5, axis=1)
+    pt1 = time.time()
+    prediction_time = pt1 - pt0
+
+    # Format labels
+    if Y_true is not None:
+        Y_true = np.squeeze(Y_true)
+
+    # Write results
+    report_results(
+        Y_true,
+        Y_pred,
+        packets,
+        model_name,
+        source_name,
+        prediction_time,
+        writer
+    )
