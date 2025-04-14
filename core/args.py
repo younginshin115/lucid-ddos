@@ -14,10 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#Sample commands
-# Training: python3 lucid_cnn.py --train ./sample-dataset/  --epochs 100 -cv 5
-# Testing: python3  lucid_cnn.py --predict ./sample-dataset/ --model ./sample-dataset/10t-10n-SYN2020-LUCID.h5
-
 import argparse
 from utils.constants import DEFAULT_EPOCHS
 

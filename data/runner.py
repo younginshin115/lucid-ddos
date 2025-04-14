@@ -96,12 +96,14 @@ def parse_dataset_from_pcap(args, command_options):
     # Count and log flow statistics
     (total_flows, ddos_flows, benign_flows),  (total_fragments, ddos_fragments, benign_fragments) = count_flows(preprocessed_flows)
 
-    log_message  = time.strftime("%Y-%m-%d %H:%M:%S") + " | dataset_type:" + args.dataset_type[0] + \
-                 " | flows (tot,ben,ddos):(" + str(total_flows) + "," + str(benign_flows) + "," + str(ddos_flows) + \
-                 ") | fragments (tot,ben,ddos):(" + str(total_fragments) + "," + str(benign_fragments) + "," + str(ddos_fragments) + \
-                 ") | options:" + command_options + " | process_time:" + str(time.time() - start_time) + " |\n"
+    write_log([
+        f"dataset_type:{args.dataset_type[0]}",
+        f"flows (tot,ben,ddos):({total_flows},{benign_flows},{ddos_flows})",
+        f"fragments (tot,ben,ddos):({total_fragments},{benign_fragments},{ddos_fragments})",
+        f"options:{command_options}",
+        f"process_time:{time.time() - start_time:.2f}"
+    ], output_folder)
 
-    write_log(log_message, output_folder, get_timestamp())
 
 def preprocess_dataset_from_data(args, command_options):
     """
@@ -176,11 +178,21 @@ def preprocess_dataset_from_data(args, command_options):
             hf.create_dataset('set_y', data=y)
 
     # Log final dataset summary
-    total = len(y_train) + len(y_val) + len(y_test)
-    ddos = np.count_nonzero(np.concatenate([y_train, y_val, y_test]))
+    # Count packets per split
+    train_packets, val_packets, test_packets = count_packets_in_dataset([norm_X_train, norm_X_val, norm_X_test])
 
-    log_message = f"Total examples: {total} (ddos: {ddos}) | options: {command_options}"
-    write_log(log_message, output_folder, get_timestamp())
+    # Compute example counts
+    total_examples = len(y_train) + len(y_val) + len(y_test)
+    total_ddos_examples = np.count_nonzero(np.concatenate([y_train, y_val, y_test]))
+    total_benign_examples = total_examples - total_ddos_examples
+
+    # Log in detailed format
+    write_log([
+        f"examples (tot,ben,ddos):({total_examples},{total_benign_examples},{total_ddos_examples})",
+        f"Train/Val/Test sizes: ({len(y_train)},{len(y_val)},{len(y_test)})",
+        f"Packets (train,val,test):({train_packets},{val_packets},{test_packets})",
+        f"options: {command_options}"
+    ], output_folder)
 
 def merge_balanced_datasets(args, command_options):
     """
@@ -254,11 +266,12 @@ def merge_balanced_datasets(args, command_options):
     [train_packets, val_packets, test_packets] = count_packets_in_dataset(
         [final_X['train'], final_X['val'], final_X['test']]
     )
+    
+    write_log([
+        f"total_flows (tot,ben,ddos):({total_flows},{benign_flows},{ddos_flows})",
+        f"Packets (train,val,test):({train_packets},{val_packets},{test_packets})",
+        f"Train/Val/Test sizes: ({final_y['train'].shape[0]},{final_y['val'].shape[0]},{final_y['test'].shape[0]})",
+        f"options: {command_options}"
+    ], output_folder)
 
-    log_message = time.strftime("%Y-%m-%d %H:%M:%S") + f" | total_flows (tot,ben,ddos):({total_flows},{benign_flows},{ddos_flows})" \
-                 + f" | Packets (train,val,test):({train_packets},{val_packets},{test_packets})" \
-                 + f" | Train/Val/Test sizes: ({final_y['train'].shape[0]},{final_y['val'].shape[0]},{final_y['test'].shape[0]})" \
-                 + f" | options: {command_options} |\n"
-
-    write_log(log_message, output_folder, get_timestamp())
 

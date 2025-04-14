@@ -1,17 +1,19 @@
 import time, os, csv
 from utils.constants import VAL_HEADER
 
-def write_log(message: str, output_folder: str, prefix: str = ''):
+def write_log(parts: list[str], output_folder: str, include_timestamp: bool = True):
     """
-    Prints and appends a message to the history.log file in the given folder.
+    Joins log parts, prepends timestamp (optional), prints and saves to history.log.
 
     Args:
-        message (str): The log message to print and write
-        output_folder (str): Path to the folder where history.log should be saved
-        prefix (str): Optional prefix (like timestamp)
+        parts (list[str]): List of log segments (e.g., examples, sizes, packets, etc.)
+        output_folder (str): Where to write history.log
+        include_timestamp (bool): Whether to add timestamp as prefix
     """
-    if prefix:
-        message = f"{prefix} | {message}"
+    message = " | ".join(parts) + " |"
+    if include_timestamp:
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        message = f"{timestamp} | {message}"
     print(message)
     with open(os.path.join(output_folder, 'history.log'), 'a') as f:
         f.write(message + '\n')
