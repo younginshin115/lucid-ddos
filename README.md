@@ -93,7 +93,7 @@ Preprocessing happens in **three internal stages**, but you only need to run **t
 ```bash
 python3 lucid_dataset_parser.py \
   --dataset_type DOS2019 \
-  --dataset_folder ./pcaps/ \
+  --dataset_folder ./sample-dataset/ \
   --packets_per_flow 10 \
   --time_window 10
 ```
@@ -107,7 +107,7 @@ This creates a file like:
 - Saves final `.hdf5` datasets
 
 ```bash
-python3 lucid_dataset_parser.py --preprocess_folder ./pcaps/
+python3 lucid_dataset_parser.py --preprocess_folder ./sample-dataset/
 ```
 
 At the end, you’ll see a summary like:
@@ -128,7 +128,7 @@ The script `lucid_cnn.py` uses a CNN-based model built with Keras.
 You can train models using one or multiple datasets.
 
 ```bash
-python3 lucid_cnn.py --train ./data/ --epochs 30
+python3 lucid_cnn.py --train ./sample-dataset/ --epochs 30
 ```
 
 Under the hood, it:
@@ -159,7 +159,7 @@ Once training is complete, you can evaluate the model on test sets or live traff
 
 ```bash
 python3 lucid_cnn.py \
-  --predict ./data/ \
+  --predict ./sample-dataset/ \
   --model ./output/10t-10n-DOS2019-LUCID.h5
 ```
 
@@ -185,7 +185,7 @@ You can also use a pre-recorded `.pcap`:
 
 ```bash
 python3 lucid_cnn.py \
-  --predict_live ./pcaps/sample.pcap \
+  --predict_live ./sample-dataset/sample.pcap \
   --model ./output/10t-10n-DOS2019-LUCID.h5 \
   --dataset_type DOS2019
 ```
