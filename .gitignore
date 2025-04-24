@@ -179,3 +179,4 @@ pyrightconfig.json
 output*/
 *.data
 *.hdf5
+dataset/
