@@ -180,3 +180,4 @@ output*/
 *.data
 *.hdf5
 dataset/
+logs/

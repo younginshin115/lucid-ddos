@@ -1,5 +1,7 @@
 import time, os, csv
 from utils.constants import VAL_HEADER
+from tensorflow.keras.callbacks import TensorBoard
+from datetime import datetime
 
 def write_log(parts: list[str], output_folder: str, include_timestamp: bool = True):
     """
@@ -53,3 +55,23 @@ def save_metrics_to_csv(csv_path, model_name, metrics, used_hyperparams, val_fil
             'Hyper-parameters': used_hyperparams,
             'Validation Set': val_file_path
         })
+
+def create_tensorboard_callback(base_log_dir="logs/tensorboard", experiment_name=None):
+    """
+    Create a TensorBoard callback for visualizing training in real-time.
+
+    Args:
+        base_log_dir (str): Base path to store logs.
+        experiment_name (str): Optional experiment name for easier tracking.
+
+    Returns:
+        TensorBoard: TensorBoard callback.
+        str: The path to the log directory.
+    """
+
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    if experiment_name:
+        log_dir = os.path.join(base_log_dir, f"{timestamp}_{experiment_name}") if experiment_name else os.path.join(base_log_dir, timestamp)
+
+    os.makedirs(log_dir, exist_ok=True)
+    return TensorBoard(log_dir=log_dir)

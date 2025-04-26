@@ -130,7 +130,7 @@ The script `lucid_cnn.py` uses a CNN-based model built with Keras.
 You can train models using one or multiple datasets.
 
 ```bash
-python3 lucid_cnn.py --train ./sample-dataset/ --epochs 30
+python3 lucid_cnn.py --train ./sample-dataset/
 ```
 
 Under the hood, it:

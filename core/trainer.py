@@ -24,7 +24,7 @@ from sklearn.metrics import f1_score, accuracy_score
 from model.builder import model_builder
 from utils.constants import PATIENCE, HYPERPARAM_GRID
 from utils.path_utils import get_model_basename, get_model_path
-from utils.logging_utils import save_metrics_to_csv
+from utils.logging_utils import save_metrics_to_csv, create_tensorboard_callback
 from core.helpers import parse_training_filename, load_and_shuffle_dataset
 
 def build_model(input_shape, kernel_col, model_name, args):
@@ -159,16 +159,27 @@ def run_training(args, output_folder):
 
         print ("\nCurrent dataset folder: ", dataset_folder)
 
+        # Build model
         model_name = f"{dataset_name}-LUCID"
         model_basename = get_model_basename(time_window, max_flow_len, model_name)
         best_model_path = get_model_path(output_folder, model_basename)
         
         # Train model
         model = build_model(X_train.shape[1:], X_train.shape[2], model_name, args)
+
+        # Create TensorBoard callback
+        tensorboard_callback = create_tensorboard_callback(experiment_name=model_name)
+        
+        # Create other callbacks (ModelCheckpoint, EarlyStopping, etc.)
         callbacks = get_callbacks(best_model_path)
+        
+        # Append TensorBoard callback to the list
+        callbacks.append(tensorboard_callback)
+        print(callbacks)
+        # Train model
         trained_model, used_hyperparams = train_model(model, X_train, Y_train, X_val, Y_val, callbacks, args)
 
-        # Save model
+        # Save the best trained model
         trained_model.save(best_model_path + ".h5")
 
         # Evaluate and log results
