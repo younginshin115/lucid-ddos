@@ -95,6 +95,8 @@ python3 lucid_dataset_parser.py \
   --dataset_type DOS2019 \
   --dataset_folder ./sample-dataset/ \
   --packets_per_flow 10 \
+  --dataset_id DOS2019 \
+  --traffic_type all \
   --time_window 10
 ```
 
