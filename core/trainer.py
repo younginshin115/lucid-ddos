@@ -21,6 +21,7 @@ from model.builder import model_builder
 from utils.path_utils import get_model_basename, get_model_path
 from utils.logging_utils import save_metrics_to_csv
 from utils.callbacks import create_early_stopping_callback, create_model_checkpoint_callback, create_tensorboard_callback
+from utils.constants import PATIENCE
 from core.helpers import parse_training_filename, load_and_shuffle_dataset
 
 def evaluate_model(model, X_val, Y_val):
@@ -79,7 +80,7 @@ def run_training(args, output_folder):
                 
         # Create callbacks
         tensorboard_callback = create_tensorboard_callback(experiment_name=model_name)
-        early_stopping_callback = create_early_stopping_callback(patience=10)
+        early_stopping_callback = create_early_stopping_callback(patience=PATIENCE)
         model_checkpoint_callback = create_model_checkpoint_callback(best_model_path)
 
         # Build callback list
