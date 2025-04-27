@@ -1,8 +1,9 @@
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Dense, Activation, Flatten, Conv2D
 from tensorflow.keras.layers import Dropout, GlobalMaxPooling2D
+from tensorflow.keras.regularizers import l1, l2
+from tensorflow.keras.optimizers import Adam
 import tensorflow.keras.backend as K
-from model.regularizer import get_regularizer
 
 def Conv2DModel(model_name, input_shape, kernel_col, kernels=64, kernel_rows=3, regularization=None, dropout=None):
     """
@@ -10,10 +11,28 @@ def Conv2DModel(model_name, input_shape, kernel_col, kernels=64, kernel_rows=3, 
     """
     K.clear_session()
 
+    # Handle regularization
+    if regularization == "l1":
+        regularizer = l1(1e-4)
+    elif regularization == "l2":
+        regularizer = l2(1e-4)
+    else:
+        regularizer = None
+
     inputs = Input(shape=input_shape, name="input")
-    x = Conv2D(kernels, (kernel_rows, kernel_col), strides=(1, 1), kernel_regularizer=regularization, name='conv0')(inputs)
-    if dropout is not None and isinstance(dropout, float):
+
+    x = Conv2D(
+        filters=kernels,
+        kernel_size=(kernel_rows, kernel_col),
+        strides=(1, 1),
+        padding="same",  # <-- 이거 추가해서 사이즈 맞춤
+        kernel_regularizer=regularizer,
+        name='conv0'
+    )(inputs)
+
+    if dropout is not None and isinstance(dropout, float) and dropout > 0.0:
         x = Dropout(dropout)(x)
+
     x = Activation('relu')(x)
     x = GlobalMaxPooling2D()(x)
     x = Flatten()(x)
@@ -22,27 +41,32 @@ def Conv2DModel(model_name, input_shape, kernel_col, kernels=64, kernel_rows=3, 
     model = Model(inputs=inputs, outputs=outputs, name=model_name)
     return model
 
-
-def model_builder(**kwargs):
+def model_builder(hp, input_shape):
     """
-    Filter valid hyperparameters, apply regularization if needed, 
-    and return a compiled Conv2D model.
+    Build a Conv2D model with tunable hyperparameters using KerasTuner.
+
+    Args:
+        hp (kerastuner.HyperParameters): Hyperparameter search space.
+        input_shape (tuple): Shape of the input data.
+
+    Returns:
+        keras.Model: Compiled Conv2D model.
     """
-    valid_keys = {
-        "model_name",
-        "input_shape",
-        "kernel_col",
-        "kernels",
-        "kernel_rows",
-        "learning_rate",
-        "regularization",
-        "dropout"
-    }
+    model = Conv2DModel(
+        model_name=hp.Choice("model_name", ["default"]),
+        input_shape=input_shape,
+        kernel_col=hp.Int("kernel_col", 2, 8, step=2),  # 줄임!
+        kernels=hp.Int("kernels", 32, 128, step=32),
+        kernel_rows=hp.Choice("kernel_rows", [3, 5]),
+        regularization=hp.Choice("regularization", ["l1", "l2", "none"]),
+        dropout=hp.Float("dropout", 0.0, 0.5, step=0.1)
+    )
 
-    filtered_kwargs = {k: v for k, v in kwargs.items() if k in valid_keys}
+    learning_rate = hp.Float("learning_rate", 1e-4, 1e-2, sampling="LOG")
 
-    # Convert regularization string to actual keras regularizer
-    reg = filtered_kwargs.get("regularization")
-    filtered_kwargs["regularization"] = get_regularizer(reg)
-
-    return Conv2DModel(**filtered_kwargs)
+    model.compile(
+        optimizer=Adam(learning_rate=learning_rate),
+        loss="binary_crossentropy",
+        metrics=["accuracy"]
+    )
+    return model
