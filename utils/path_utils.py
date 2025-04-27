@@ -49,7 +49,7 @@ def create_output_subfolder(base_dir="./output/"):
     next_id = max(run_ids) + 1 if run_ids else 0
 
     # Build the new subfolder name and path
-    new_dir_name = f"output_{next_id:03d}_{date_str}"
+    new_dir_name = f"output_{date_str}_{next_id:03d}"
     full_path = os.path.join(base_dir, new_dir_name)
 
     # Create the subfolder
