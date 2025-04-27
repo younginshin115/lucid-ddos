@@ -2,22 +2,20 @@ from tensorflow.keras.callbacks import TensorBoard, EarlyStopping, ModelCheckpoi
 import os
 from datetime import datetime
 
-def create_tensorboard_callback(base_log_dir="logs/tensorboard", experiment_name=None, log_dir=None):
+def create_tensorboard_callback(base_log_dir="logs/tensorboard", experiment_name=None):
     """
-    Create a TensorBoard callback.
+    Create a TensorBoard callback with a timestamped directory.
 
     Args:
-        base_log_dir (str): Base directory for logs if log_dir is not specified.
+        base_log_dir (str): Base directory for logs.
         experiment_name (str): Optional experiment name.
-        log_dir (str): Full path to the log directory (overrides base_log_dir/experiment_name).
 
     Returns:
         TensorBoard: Configured TensorBoard callback
+        str: Path to the log directory
     """
-    if log_dir is None:
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        log_dir = os.path.join(base_log_dir, f"{timestamp}_{experiment_name}" if experiment_name else timestamp)
-
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    log_dir = os.path.join(base_log_dir, f"{timestamp}_{experiment_name}" if experiment_name else timestamp)
     os.makedirs(log_dir, exist_ok=True)
     return TensorBoard(log_dir=log_dir)
 
