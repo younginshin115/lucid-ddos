@@ -4,7 +4,7 @@ import glob
 import time
 
 from core.prediction_runner import run_prediction_loop_preprocessed
-from data.data_loader import load_dataset, count_packets_in_dataset
+from data.data_loader import load_dataset
 from utils.constants import PREDICT_HEADER
 from utils.path_utils import get_output_path
 from utils.minmax_utils import static_min_max
