@@ -164,7 +164,7 @@ Logs are automatically saved under the `logs/` directory, including:
 To launch TensorBoard:
 
 ```bash
-tensorboard --logdir logs/
+tensorboard --logdir logs/tensorboard
 ```
 
 Then, open your browser and navigate to:
