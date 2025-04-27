@@ -1,9 +1,9 @@
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Dense, Activation, Flatten, Conv2D
 from tensorflow.keras.layers import Dropout, GlobalMaxPooling2D
-from tensorflow.keras.regularizers import l1, l2
 from tensorflow.keras.optimizers import Adam
 import tensorflow.keras.backend as K
+from model.regularizer import get_regularizer
 
 def Conv2DModel(model_name, input_shape, kernel_col, kernels=64, kernel_rows=3, regularization=None, dropout=None):
     """
@@ -11,13 +11,7 @@ def Conv2DModel(model_name, input_shape, kernel_col, kernels=64, kernel_rows=3, 
     """
     K.clear_session()
 
-    # Handle regularization
-    if regularization == "l1":
-        regularizer = l1(1e-4)
-    elif regularization == "l2":
-        regularizer = l2(1e-4)
-    else:
-        regularizer = None
+    regularizer = get_regularizer(regularization)
 
     inputs = Input(shape=input_shape, name="input")
 
