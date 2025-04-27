@@ -31,22 +31,22 @@ lucid_project/
 │   └── prediction_utils.py    # Model loading, metadata parsing, warm-up, etc.
 
 ├── data/                      # Dataset parsing, loading, and preparation
-│   ├── args.py
-│   ├── data_loader.py
-│   ├── ddos_specs.py
-│   ├── flow_utils.py
-│   ├── parser.py
-│   ├── process_pcap.py
-│   ├── runner.py
-│   └── split.py
+│   ├── args.py                # Argument parser for dataset preparation
+│   ├── data_loader.py         # Loads preprocessed .hdf5 datasets
+│   ├── ddos_specs.py          # Attack flow specifications for CIC-IDS/CIC-DDoS datasets
+│   ├── flow_utils.py          # Functions for counting, balancing, and fragmenting flows
+│   ├── parser.py              # Parses labels, packets, and flow extraction
+│   ├── process_pcap.py        # Processes raw .pcap files into structured flows
+│   ├── runner.py              # Main entry point for dataset creation
+│   └── split.py               # Train-test splitting utilities
 
 ├── core/                      # Core logic for training and prediction
-│   ├── args.py
-│   ├── helpers.py
-│   ├── trainer.py
-│   ├── predictor.py
-│   ├── live_predictor.py
-│   └── prediction_runner.py
+│   ├── args.py                # Argument parser for training/inference
+│   ├── helpers.py             # Helper functions for training and evaluation
+│   ├── trainer.py             # Training loop and evaluation logic
+│   ├── predictor.py           # Inference utilities
+│   ├── live_predictor.py      # Live packet capturing and prediction (NEW)
+│   └── prediction_runner.py   # Main entry point for running predictions
 
 └── requirements.txt           # Required Python packages
 ```
