@@ -153,7 +153,37 @@ Example log summary:
 
 ---
 
-### 4. Inference (Batch or Live)
+### 4. TensorBoard Visualization
+
+After model training, you can visualize the training process (loss, accuracy, etc.) using TensorBoard.
+
+Logs are automatically saved under the `logs/` directory, including:
+- Training curves for each hyperparameter tuning trial
+- Best model training curves separately under `logs/tensorboard_best/`
+
+To launch TensorBoard:
+
+```bash
+tensorboard --logdir logs/
+```
+
+Then, open your browser and navigate to:
+
+```
+http://localhost:6006/
+```
+
+You will be able to see:
+- Training and validation accuracy over epochs
+- Training and validation loss over epochs
+- Comparison of different hyperparameter trials
+- Best model's clean training curve
+
+> Tip: You can use filters in TensorBoard to easily select specific experiments based on timestamp or experiment name.
+
+---
+
+### 5. Inference (Batch or Live)
 
 Once training is complete, you can evaluate the model on test sets or live traffic.
 
