@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import glob
+import glob, os
 from sklearn.metrics import f1_score, accuracy_score
 from keras_tuner import RandomSearch
 from model.builder import model_builder
@@ -105,6 +105,20 @@ def run_training(args, output_folder):
 
         # Retrieve the best model after tuning
         best_model = tuner.get_best_models(num_models=1)[0]
+
+        # Create new tensorboard_best logdir
+        tensorboard_best_logdir = os.path.join("logs", "tensorboard_best", model_basename)
+        os.makedirs(tensorboard_best_logdir, exist_ok=True)
+
+        tensorboard_best_callback = create_tensorboard_callback(experiment_name=model_basename, log_dir=tensorboard_best_logdir)
+
+        # Refit best model to log clean TensorBoard
+        best_model.fit(
+            X_train, Y_train,
+            validation_data=(X_val, Y_val),
+            epochs=args.epochs,  # or fewer epochs if you want
+            callbacks=[tensorboard_best_callback]
+        )
 
         # Retrieve the best hyperparameters
         best_hyperparams = tuner.get_best_hyperparameters(num_trials=1)[0]
