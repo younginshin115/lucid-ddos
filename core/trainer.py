@@ -78,12 +78,11 @@ def run_training(args, output_folder):
         best_model_path = get_model_path(output_folder, model_basename)
                 
         # Create callbacks
-        tensorboard_callback = create_tensorboard_callback(experiment_name=model_name)
         early_stopping_callback = create_early_stopping_callback(patience=10)
         model_checkpoint_callback = create_model_checkpoint_callback(best_model_path)
 
         # Build callback list
-        callbacks = [tensorboard_callback, early_stopping_callback, model_checkpoint_callback]
+        callbacks = [early_stopping_callback, model_checkpoint_callback]
 
         # Initialize Keras Tuner (RandomSearch)
         tuner = RandomSearch(
@@ -106,20 +105,20 @@ def run_training(args, output_folder):
         # Retrieve the best model after tuning
         best_model = tuner.get_best_models(num_models=1)[0]
 
-        # Create new tensorboard_best logdir
-        tensorboard_best_logdir = os.path.join("logs", "tensorboard_best", model_basename)
-        os.makedirs(tensorboard_best_logdir, exist_ok=True)
-
-        tensorboard_best_callback = create_tensorboard_callback(experiment_name=model_basename, log_dir=tensorboard_best_logdir)
-
+        # Create TensorBoard callback for logging best model training
+        tensorboard_best_callback = create_tensorboard_callback(
+            base_log_dir="logs/tensorboard_best",
+            experiment_name=model_basename + "_best"
+        )
+        
         # Refit best model to log clean TensorBoard
         best_model.fit(
             X_train, Y_train,
             validation_data=(X_val, Y_val),
-            epochs=args.epochs,  # or fewer epochs if you want
+            epochs=args.epochs,
             callbacks=[tensorboard_best_callback]
         )
-
+        
         # Retrieve the best hyperparameters
         best_hyperparams = tuner.get_best_hyperparameters(num_trials=1)[0]
 
