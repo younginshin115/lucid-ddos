@@ -41,11 +41,11 @@ def create_output_subfolder(base_dir="./output/"):
     existing = [
         name for name in os.listdir(base_dir)
         if os.path.isdir(os.path.join(base_dir, name))
-        and re.match(rf"output_\d{{3}}_{date_str}", name)
+        and re.match(rf"output_{date_str}_\d{{3}}", name)
     ]
 
     # Determine the next available run number
-    run_ids = [int(name.split("_")[1]) for name in existing]
+    run_ids = [int(name.split("_")[2]) for name in existing]
     next_id = max(run_ids) + 1 if run_ids else 0
 
     # Build the new subfolder name and path
