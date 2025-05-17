@@ -82,6 +82,9 @@ def get_dataset_parser():
     parser.add_argument('-t', '--dataset_type', nargs='+', type=str,
                         help='Dataset type (e.g., DOS2017, DOS2018, DOS2019, SYN2020)')
 
+    parser.add_argument('--label_mode', choices=['binary', 'multi'], default='binary',
+                        help='Labeling mode: "binary" for binary classification, "multi" for multi-class attack labels')
+
     parser.add_argument('-w', '--time_window', nargs='+', type=str,
                         help='Duration of time window in seconds (e.g., 10)')
 
