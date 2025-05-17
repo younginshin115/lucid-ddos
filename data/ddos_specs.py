@@ -46,3 +46,90 @@ DDOS_ATTACK_SPECS = {
     'SYN2020': CUSTOM_DDOS_SYN,
     'DOS2019': DOS2019_FLOWS
 }
+
+DDOS_ATTACK_SPECS_MULTI = {
+    'CIC-IDS-2017': {
+        'PortScan': {
+            'attackers': ['192.168.10.8'],
+            'victims': ['192.168.10.50']
+        },
+        'DoS_GoldenEye': {
+            'attackers': ['192.168.10.9'],
+            'victims': ['192.168.10.50']
+        },
+        'DoS_Slowloris': {
+            'attackers': ['192.168.10.9'],
+            'victims': ['192.168.10.50']
+        },
+        'DoS_Hulk': {
+            'attackers': ['192.168.10.9'],
+            'victims': ['192.168.10.50']
+        },
+        'DoS_Slowhttptest': {
+            'attackers': ['192.168.10.9'],
+            'victims': ['192.168.10.50']
+        },
+        'DoS_Smack': {
+            'attackers': ['192.168.10.5'],
+            'victims': ['192.168.10.50']
+        },
+        'DoS_Backdoor': {
+            'attackers': ['192.168.10.3'],
+            'victims': ['192.168.10.50']
+        }
+    },
+
+    'CIC-IDS-2018': {
+        'DDoS_LOIC_HTTP': {
+            'attackers': ['18.218.115.60'],
+            'victims': ['18.218.83.150']
+        },
+        'DDoS_HOIC': {
+            'attackers': ['18.219.9.1'],
+            'victims': ['18.218.83.150']
+        },
+        'DDoS_UDP': {
+            'attackers': ['18.219.32.43'],
+            'victims': ['18.218.83.150']
+        },
+        'DDoS_Syn': {
+            'attackers': ['18.218.55.126'],
+            'victims': ['18.218.83.150']
+        }
+    },
+
+    'CIC-DDoS-2019': {
+        'DNS': {
+            'attackers': ['172.16.0.5'],
+            'victims': ['192.168.50.1', '192.168.50.4']
+        },
+        'NetBIOS': {
+            'attackers': ['192.168.20.5'],
+            'victims': ['192.168.20.1']
+        },
+        'LDAP': {
+            'attackers': ['192.168.10.5'],
+            'victims': ['192.168.10.1']
+        },
+        'MSSQL': {
+            'attackers': ['192.168.15.5'],
+            'victims': ['192.168.15.1']
+        },
+        'NTP': {
+            'attackers': ['192.168.25.5'],
+            'victims': ['192.168.25.1']
+        },
+        'SNMP': {
+            'attackers': ['192.168.35.5'],
+            'victims': ['192.168.35.1']
+        },
+        'UDP': {
+            'attackers': ['192.168.40.5'],
+            'victims': ['192.168.40.1']
+        },
+        'WebDDoS': {
+            'attackers': ['192.168.30.5'],
+            'victims': ['192.168.30.1']
+        }
+    }
+}
