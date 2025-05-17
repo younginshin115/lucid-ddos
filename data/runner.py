@@ -17,7 +17,7 @@ import numpy as np
 import os, glob, time, pickle, h5py
 from multiprocessing import Process, Manager
 
-from data.parser import parse_labels
+from data.parser import parse_labels, parse_labels_multiclass
 from data.process_pcap import process_pcap
 from data.flow_utils import count_flows, balance_dataset, dataset_to_list_of_fragments
 from data.split import train_test_split
@@ -48,7 +48,12 @@ def parse_dataset_from_pcap(args, command_options):
     filelist = glob.glob(args.dataset_folder[0]+ '/*.pcap')
 
     # Load label definitions
-    in_labels = parse_labels(dataset_type=args.dataset_type[0], label=args.label)
+    if args.label_mode == 'binary':
+        in_labels = parse_labels(dataset_type=args.dataset_type[0], label=args.label)
+    elif args.label_mode == 'multi':
+        in_labels, label_map = parse_labels_multiclass(dataset_type=args.dataset_type[0])
+    else:
+        raise ValueError("Invalid label_mode. Must be 'binary' or 'multi'.")
 
     # Determine preprocessing parameters
     max_flow_len = int(args.packets_per_flow[0]) if args.packets_per_flow else MAX_FLOW_LEN
