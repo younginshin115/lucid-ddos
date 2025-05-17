@@ -47,7 +47,7 @@ DDOS_ATTACK_SPECS = {
     'DOS2019': DOS2019_FLOWS
 }
 
-DDOS_ATTACK_SPECS_MULTI = {
+DDOS_ATTACK_SPECS_EXTENDED = {
     'CIC-IDS-2017': {
         'PortScan': {
             'attackers': ['192.168.10.8'],
