@@ -25,7 +25,7 @@ from data.data_loader import count_packets_in_dataset
 from utils.preprocessing import normalize_and_padding
 from utils.minmax_utils import static_min_max
 from utils.constants import MAX_FLOW_LEN, TIME_WINDOW, TRAIN_SIZE
-from utils.logging_utils import write_log, get_timestamp
+from utils.logging_utils import write_log
 
 def parse_dataset_from_pcap(args, command_options):
     """
