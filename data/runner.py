@@ -48,9 +48,11 @@ def parse_dataset_from_pcap(args, command_options):
     filelist = glob.glob(args.dataset_folder[0]+ '/*.pcap')
 
     # Load label definitions
-    if args.label_mode == 'binary':
+    label_mode = args.label_mode
+    if label_mode == 'binary':
         in_labels = parse_labels(dataset_type=args.dataset_type[0], label=args.label)
-    elif args.label_mode == 'multi':
+        label_map = None  # not used
+    elif label_mode == 'multi':
         in_labels, label_map = parse_labels_multiclass(dataset_type=args.dataset_type[0])
     else:
         raise ValueError("Invalid label_mode. Must be 'binary' or 'multi'.")
@@ -92,7 +94,8 @@ def parse_dataset_from_pcap(args, command_options):
         preprocessed_flows += list(results)
 
     # Save flows as .data
-    filename = f"{int(time_window)}t-{max_flow_len}n-{dataset_id}-preprocess"
+    filename = f"{int(time_window)}t-{max_flow_len}n-{dataset_id}-{label_mode}-preprocess"
+    
     output_file = os.path.join(output_folder, filename).replace("//", "/")
 
     with open(output_file + '.data', 'wb') as filehandle:
@@ -126,9 +129,12 @@ def preprocess_dataset_from_data(args, command_options):
         args (argparse.Namespace): Parsed CLI arguments
         command_options (str): Full command string used, for logging purposes
     """
+    # Get label mode from args or use default
+    label_mode = args.label_mode if hasattr(args, 'label_mode') else 'binary'
+
     # Determine .data files and output folder
     if args.preprocess_folder:
-        filelist = glob.glob(args.preprocess_folder[0] + '/*.data')
+        filelist = glob.glob(os.path.join(args.preprocess_folder[0], f"*-{label_mode}-preprocess.data"))
         output_folder = args.output_folder[0] if args.output_folder else args.preprocess_folder[0]
     else:
         filelist = args.preprocess_file
@@ -181,8 +187,12 @@ def preprocess_dataset_from_data(args, command_options):
 
     y_train, y_val, y_test = np.array(y_train), np.array(y_val), np.array(y_test)
 
+    # Get label mode from args or use default
+    label_mode = args.label_mode if hasattr(args, 'label_mode') else 'binary'
+
     # Save as HDF5
-    filename_prefix = f"{time_window}t-{max_flow_len}n-{dataset_id}-dataset"
+    filename_prefix = f"{time_window}t-{max_flow_len}n-{dataset_id}-{label_mode}-dataset"
+    
     for split, X, y in zip(["train", "val", "test"], [norm_X_train, norm_X_val, norm_X_test], [y_train, y_val, y_test]):
         with h5py.File(os.path.join(output_folder, f"{filename_prefix}-{split}.hdf5"), 'w') as hf:
             hf.create_dataset('set_x', data=X)
@@ -215,12 +225,15 @@ def merge_balanced_datasets(args, command_options):
         args (argparse.Namespace): Parsed CLI arguments
         command_options (str): Full command string used, for logging purposes
     """
-    output_folder = args.output_folder[0] if args.output_folder else args.balance_folder[0]
 
-    # Collect all dataset files
+    output_folder = args.output_folder[0] if args.output_folder else args.balance_folder[0]
+    label_mode = args.label_mode if hasattr(args, 'label_mode') else 'binary'
+
+    # Collect all dataset files matching label_mode
     datasets = []
     for folder in args.balance_folder:
-        datasets += glob.glob(os.path.join(folder, '*.hdf5'))
+        pattern = f"*-{label_mode}-dataset-*.hdf5"
+        datasets += glob.glob(os.path.join(folder, pattern))
 
     train_files, val_files, test_files = {}, {}, {}
     min_train, min_val, min_test = float('inf'), float('inf'), float('inf')
@@ -231,26 +244,21 @@ def merge_balanced_datasets(args, command_options):
         filename = os.path.basename(file)
         with h5py.File(file, 'r') as f:
             X, Y = np.array(f["set_x"][:]), np.array(f["set_y"][:])
+
+        base_prefix = filename.split(f'-{label_mode}-dataset')[0]
+        output_prefix = output_prefix or base_prefix
+
+        if base_prefix != output_prefix:
+            print("Inconsistent datasets!"); exit()
+
         if 'train' in filename:
-            key = filename.split('dataset')[0] + 'dataset-balanced-train.hdf5'
-            output_prefix = output_prefix or filename.split('IDS')[0].strip()
-            if filename.split('IDS')[0].strip() != output_prefix:
-                print("Inconsistent datasets!"); exit()
-            train_files[key] = (X, Y)
+            train_files[filename] = (X, Y)
             min_train = min(min_train, X.shape[0])
         elif 'val' in filename:
-            key = filename.split('dataset')[0] + 'dataset-balanced-val.hdf5'
-            output_prefix = output_prefix or filename.split('IDS')[0].strip()
-            if filename.split('IDS')[0].strip() != output_prefix:
-                print("Inconsistent datasets!"); exit()
-            val_files[key] = (X, Y)
+            val_files[filename] = (X, Y)
             min_val = min(min_val, X.shape[0])
         elif 'test' in filename:
-            key = filename.split('dataset')[0] + 'dataset-balanced-test.hdf5'
-            output_prefix = output_prefix or filename.split('IDS')[0].strip()
-            if filename.split('IDS')[0].strip() != output_prefix:
-                print("Inconsistent datasets!"); exit()
-            test_files[key] = (X, Y)
+            test_files[filename] = (X, Y)
             min_test = min(min_test, X.shape[0])
 
     final_X, final_y = {'train': None, 'val': None, 'test': None}, {'train': None, 'val': None, 'test': None}
@@ -265,7 +273,7 @@ def merge_balanced_datasets(args, command_options):
 
     # Save the final merged datasets
     for split in ['train', 'val', 'test']:
-        filename = f"{output_prefix}IDS201X-dataset-balanced-{split}.hdf5"
+        filename = f"{output_prefix}-{label_mode}-dataset-balanced-{split}.hdf5"
         with h5py.File(os.path.join(output_folder, filename), 'w') as hf:
             hf.create_dataset('set_x', data=final_X[split])
             hf.create_dataset('set_y', data=final_y[split])
@@ -277,7 +285,7 @@ def merge_balanced_datasets(args, command_options):
     [train_packets, val_packets, test_packets] = count_packets_in_dataset(
         [final_X['train'], final_X['val'], final_X['test']]
     )
-    
+
     write_log([
         f"total_flows (tot,ben,ddos):({total_flows},{benign_flows},{ddos_flows})",
         f"Packets (train,val,test):({train_packets},{val_packets},{test_packets})",
