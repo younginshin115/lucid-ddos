@@ -98,6 +98,12 @@ def parse_dataset_from_pcap(args, command_options):
     with open(output_file + '.data', 'wb') as filehandle:
         pickle.dump(preprocessed_flows, filehandle)
 
+    # Save label map if multi-class mode
+    if args.label_mode == 'multi':
+        import json
+        with open(output_file + '-labelmap.json', 'w') as f:
+            json.dump(label_map, f, indent=2)
+
     # Count and log flow statistics
     (total_flows, ddos_flows, benign_flows),  (total_fragments, ddos_fragments, benign_fragments) = count_flows(preprocessed_flows)
 
