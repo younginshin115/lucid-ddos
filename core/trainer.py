@@ -16,12 +16,14 @@
 
 import glob
 import numpy as np
-from sklearn.metrics import f1_score, accuracy_score
+from sklearn.metrics import (
+    accuracy_score, f1_score, precision_score, recall_score, confusion_matrix
+)
 from keras.utils import to_categorical
 from keras_tuner import RandomSearch
 from model.builder import model_builder
 from utils.path_utils import get_model_basename, get_model_path
-from utils.logging_utils import save_metrics_to_csv
+from utils.logging_utils import save_evaluation_artifacts
 from utils.callbacks import create_early_stopping_callback, create_model_checkpoint_callback, create_tensorboard_callback
 from utils.constants import PATIENCE
 from core.helpers import parse_training_filename, load_and_shuffle_dataset
@@ -37,23 +39,26 @@ def evaluate_model(model, X_val, Y_val, label_mode="binary"):
         label_mode (str): "binary" or "multi"
 
     Returns:
-        dict: Evaluation results including accuracy, F1 score, and sample count
+        dict: Evaluation results including accuracy, F1/F1_weighted, precision, recall, confusion matrix
     """
     Y_pred_probs = model.predict(X_val)
 
     if label_mode == "multi":
-        # Convert softmax predictions and one-hot labels to integer class labels
         Y_pred = Y_pred_probs.argmax(axis=1)
         Y_true = Y_val.argmax(axis=1)
+        average_type = "weighted"
     else:
-        # Binary case: apply 0.5 threshold
         Y_pred = (Y_pred_probs > 0.5).astype(int).reshape((-1,))
         Y_true = Y_val.reshape((-1,))
+        average_type = "binary"
 
     return {
-        "f1": f1_score(Y_true, Y_pred, average="weighted" if label_mode == "multi" else "binary"),
         "accuracy": accuracy_score(Y_true, Y_pred),
-        "samples": Y_pred.shape[0]
+        "f1": f1_score(Y_true, Y_pred, average=average_type),
+        "precision": precision_score(Y_true, Y_pred, average=average_type, zero_division=0),
+        "recall": recall_score(Y_true, Y_pred, average=average_type, zero_division=0),
+        "confusion_matrix": confusion_matrix(Y_true, Y_pred).tolist(),  # convert to JSON serializable format
+        "samples": len(Y_true)
     }
 
 def run_training(args, output_folder):
@@ -147,14 +152,16 @@ def run_training(args, output_folder):
         metrics = evaluate_model(best_model, X_val, Y_val, label_mode=label_mode)
 
         # Save evaluation metrics
-        save_metrics_to_csv(
-            best_model_path + ".csv",
-            model_name,
-            metrics,
-            best_hyperparams.values,
-            glob.glob(dataset_folder + "/*-val.hdf5")[0],
-            label_mode=label_mode
+        save_evaluation_artifacts(
+            base_path=best_model_path,
+            model_name=model_name,
+            metrics=metrics,
+            used_hyperparams=best_hyperparams.values,
+            val_file_path=glob.glob(dataset_folder + "/*-val.hdf5")[0],
+            label_mode=label_mode,
+            class_labels=list(range(num_classes)) if label_mode == "multi" else [0, 1]
         )
+
 
         print(f"[✓] Best parameters: {best_hyperparams.values}")
         print(f"[✓] Saved model to: {best_model_path}.h5")

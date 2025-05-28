@@ -1,5 +1,9 @@
-import time, os, csv
+import time, os, csv, json
 from utils.constants import VAL_HEADER
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+import os
 
 def write_log(parts: list[str], output_folder: str, include_timestamp: bool = True):
     """
@@ -27,22 +31,22 @@ def get_timestamp():
     """
     return time.strftime("%Y-%m-%d %H:%M:%S")
 
-
-def save_metrics_to_csv(csv_path, model_name, metrics, used_hyperparams, val_file_path, label_mode):
+def save_evaluation_artifacts(base_path, model_name, metrics, used_hyperparams, val_file_path, label_mode, class_labels=None):
     """
-    Save evaluation metrics to a CSV file for record-keeping and analysis.
-
-    This writes a single row into a CSV file with model name, accuracy, F1 score,
-    number of samples, used hyperparameters, and validation set information.
+    Save evaluation results: CSV, confusion matrix JSON, and confusion matrix image.
 
     Args:
-        csv_path (str): Full path to the CSV file to write
-        model_name (str): Name of the model (e.g., 'SYN2020-LUCID')
-        metrics (dict): Dictionary with keys 'accuracy', 'f1', 'samples'
-        used_hyperparams (dict): Dictionary of hyperparameters used for training
-        val_file_path (str): Path to the validation dataset used
-        label_mode (str): Label mode, either 'binary' or 'multi'
+        base_path (str): Base path without extension (e.g., '/models/SYN2020-LUCID')
+        model_name (str): Name of the model
+        metrics (dict): Dict with accuracy, f1, precision, recall, confusion_matrix, samples
+        used_hyperparams (dict): Hyperparameters used
+        val_file_path (str): Path to the validation set
+        label_mode (str): 'binary' or 'multi'
+        class_labels (list[str] or list[int], optional): Class names for confusion matrix image
     """
+    
+    # 1. Save metrics to CSV
+    csv_path = base_path + ".csv"
     with open(csv_path, 'w', newline='') as val_file:
         val_writer = csv.DictWriter(val_file, fieldnames=VAL_HEADER)
         val_writer.writeheader()
@@ -51,7 +55,46 @@ def save_metrics_to_csv(csv_path, model_name, metrics, used_hyperparams, val_fil
             'Samples': metrics['samples'],
             'Accuracy': f"{metrics['accuracy']:05.4f}",
             'F1Score': f"{metrics['f1']:05.4f}",
+            'Precision': f"{metrics['precision']:05.4f}",
+            'Recall': f"{metrics['recall']:05.4f}",
             'Hyper-parameters': used_hyperparams,
             'Validation Set': val_file_path,
             'Label Mode': label_mode
         })
+
+    # 2. Save confusion matrix to JSON
+    matrix_json_path = base_path + "_confusion_matrix.json"
+    with open(matrix_json_path, "w") as f:
+        json.dump(metrics["confusion_matrix"], f, indent=2)
+    
+    # 3. Save confusion matrix image
+    png_path = base_path + "_confusion_matrix.png"
+    if class_labels is None:
+        class_labels = list(range(len(metrics["confusion_matrix"])))
+    save_confusion_matrix_image(metrics["confusion_matrix"], class_labels, png_path)
+
+def save_confusion_matrix_image(conf_matrix, class_labels, output_path, title="Confusion Matrix"):
+    """
+    Save confusion matrix as a heatmap image.
+
+    Args:
+        conf_matrix (list[list[int]]): Confusion matrix as a nested list (or np.ndarray)
+        class_labels (list[str] or None): List of class names for axis ticks
+        output_path (str): Path to save the output PNG image
+        title (str): Title for the heatmap
+    """
+    plt.figure(figsize=(6, 5))
+    sns.heatmap(
+        np.array(conf_matrix), 
+        annot=True, 
+        fmt="d", 
+        cmap="Blues", 
+        xticklabels=class_labels,
+        yticklabels=class_labels
+    )
+    plt.title(title)
+    plt.ylabel("True Label")
+    plt.xlabel("Predicted Label")
+    plt.tight_layout()
+    plt.savefig(output_path)
+    plt.close()
