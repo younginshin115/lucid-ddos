@@ -48,7 +48,7 @@ DDOS_ATTACK_SPECS = {
 }
 
 DDOS_ATTACK_SPECS_EXTENDED = {
-    'CIC-IDS-2017': {
+    'DOS2017': {
         'PortScan': {
             'attackers': ['192.168.10.8'],
             'victims': ['192.168.10.50']
@@ -79,7 +79,7 @@ DDOS_ATTACK_SPECS_EXTENDED = {
         }
     },
 
-    'CIC-IDS-2018': {
+    'DOS2018': {
         'DDoS_LOIC_HTTP': {
             'attackers': ['18.218.115.60'],
             'victims': ['18.218.83.150']
@@ -98,7 +98,7 @@ DDOS_ATTACK_SPECS_EXTENDED = {
         }
     },
 
-    'CIC-DDoS-2019': {
+    'DOS2019': {
         'DNS': {
             'attackers': ['172.16.0.5'],
             'victims': ['192.168.50.1', '192.168.50.4']
