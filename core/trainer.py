@@ -89,7 +89,7 @@ def run_training(args, output_folder):
 
         # Build model
         model_name = f"{dataset_name}-LUCID"
-        model_basename = get_model_basename(time_window, max_flow_len, model_name)
+        model_basename = get_model_basename(time_window, max_flow_len, model_name, label_mode)
         best_model_path = get_model_path(output_folder, model_basename)
                 
         # Create callbacks

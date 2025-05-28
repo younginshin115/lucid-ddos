@@ -70,11 +70,11 @@ def get_output_path(output_folder: str, filename: str) -> str:
     """
     return os.path.join(output_folder, filename)
 
-def get_model_basename(time_window: int, max_flow_len: int, model_name: str) -> str:
+def get_model_basename(time_window: int, max_flow_len: int, model_name: str, label_mode: str) -> str:
     """
     Construct a base filename for a model using its parameters.
 
-    The format is: {time_window}t-{max_flow_len}n-{model_name}
+    The format is: {time_window}t-{max_flow_len}n-{model_name}[-multi]
 
     This is helpful for keeping output files organized and consistently named
     based on their experimental settings.
@@ -83,11 +83,14 @@ def get_model_basename(time_window: int, max_flow_len: int, model_name: str) -> 
         time_window (int): The time window used during dataset creation
         max_flow_len (int): The maximum number of packets per flow
         model_name (str): The name of the model or dataset (e.g., 'SYN2020-LUCID')
+        label_mode (str): Label mode, either 'binary' or 'multi'
 
     Returns:
-        str: A formatted base filename (e.g., '10t-20n-SYN2020-LUCID')
+        str: A formatted base filename (e.g., '10t-20n-SYN2020-LUCID-binary' or '10t-20n-SYN2020-LUCID-multi')
     """
-    return f"{time_window}t-{max_flow_len}n-{model_name}"
+    base = f"{time_window}t-{max_flow_len}n-{model_name}-{label_mode}"
+
+    return base
 
 
 def get_model_path(output_folder: str, model_basename: str) -> str:
