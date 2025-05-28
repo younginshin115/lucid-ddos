@@ -1,4 +1,3 @@
-
 # 📡 Improved LUCID: DDoS Detection Model Enhancement Project
 
 This project is part of a graduate research assignment,  
@@ -85,10 +84,11 @@ Raw network captures (`.pcap`) must be transformed into structured feature sets 
 
 Preprocessing happens in **three internal stages**, but you only need to run **two commands**:
 
-#### Stage 1: Convert `.pcap` to `.data`  
-- Parses packet-level features and groups them into bidirectional flows  
-- Flows are fragmented using fixed time windows  
-- Labels are assigned as `benign` or `ddos`
+#### Stage 1: Convert `.pcap` to `.data`
+
+- Parses packet-level features and groups them into bidirectional flows
+- Flows are fragmented using fixed time windows
+- Labels are assigned based on label_mode (binary or multi)
 
 ```bash
 python3 lucid_dataset_parser.py \
@@ -98,18 +98,23 @@ python3 lucid_dataset_parser.py \
   --dataset_id DOS2019 \
   --traffic_type all \
   --time_window 10
+  --label_mode binary
 ```
 
-This creates a file like:  
-`10t-10n-DOS2019-preprocess.data`
+This creates a file like:
+`10t-10n-DOS2019-preprocess-binary.data`
+(If `--label_mode multi`, then `10t-10n-DOS2019-preprocess-multi.data` and a `-labelmap.json` will also be saved.)
 
-#### Stage 2: Convert `.data` to `.hdf5`  
-- Loads `.data` files into memory  
-- Applies normalization (min-max), padding, and splits into train / val / test sets  
+#### Stage 2: Convert `.data` to `.hdf5`
+
+- Loads `.data` files into memory
+- Applies normalization (min-max), padding, and splits into train / val / test sets
 - Saves final `.hdf5` datasets
 
 ```bash
-python3 lucid_dataset_parser.py --preprocess_folder ./sample-dataset/
+python3 lucid_dataset_parser.py \
+  --preprocess_folder ./sample-dataset/ \
+  --label_mode binary
 ```
 
 At the end, you’ll see a summary like:
@@ -117,10 +122,13 @@ At the end, you’ll see a summary like:
 > Total samples: 7486 (3743 benign, 3743 ddos)  
 > Train / Val / Test sizes: (6060, 677, 749)
 
-You will get:  
-- `10t-10n-DOS2019-dataset-train.hdf5`  
-- `10t-10n-DOS2019-dataset-val.hdf5`  
-- `10t-10n-DOS2019-dataset-test.hdf5`
+You will get:
+
+- `10t-10n-DOS2019-binary-dataset-train.hdf5`
+- `10t-10n-DOS2019-binary-dataset-val.hdf5`
+- `10t-10n-DOS2019-binary-dataset-test.hdf5`
+
+(If `--label_mode multi`, filenames will contain `-multi-` instead of -binary-.)
 
 ---
 
@@ -158,6 +166,7 @@ Example log summary:
 After model training, you can visualize the training process (loss, accuracy, etc.) using TensorBoard.
 
 Logs are automatically saved under the `logs/` directory, including:
+
 - Training curves for each hyperparameter tuning trial
 - Best model training curves separately under `logs/tensorboard_best/`
 
@@ -174,6 +183,7 @@ http://localhost:6006/
 ```
 
 You will be able to see:
+
 - Training and validation accuracy over epochs
 - Training and validation loss over epochs
 - Comparison of different hyperparameter trials
@@ -245,7 +255,7 @@ Fondazione Bruno Kessler (FBK), Queen’s University Belfast, and the University
 as introduced in the paper:
 
 > R. Doriguzzi-Corin, S. Millar, S. Scott-Hayward, J. Martínez-del-Rincón, and D. Siracusa,  
-> *"Lucid: A Practical, Lightweight Deep Learning Solution for DDoS Attack Detection"*,  
+> _"Lucid: A Practical, Lightweight Deep Learning Solution for DDoS Attack Detection"_,  
 > IEEE Transactions on Network and Service Management, vol. 17, no. 2, pp. 876–889, June 2020.  
 > [https://doi.org/10.1109/TNSM.2020.2971776](https://doi.org/10.1109/TNSM.2020.2971776)
 
