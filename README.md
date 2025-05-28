@@ -138,7 +138,11 @@ The script `lucid_cnn.py` uses a CNN-based model built with Keras.
 You can train models using one or multiple datasets.
 
 ```bash
-python3 lucid_cnn.py --train ./sample-dataset/
+# For binary classification (e.g., benign vs. ddos)
+python3 lucid_cnn.py --train ./sample-dataset/ --label_mode binary
+
+# For multi-class classification (e.g., DNS, LDAP, WebDDoS...)
+python3 lucid_cnn.py --train ./sample-dataset/ --label_mode multi
 ```
 
 Under the hood, it:
@@ -150,8 +154,11 @@ Under the hood, it:
 Model filename format:
 
 ```
-10t-10n-DOS2019-LUCID.h5
-10t-10n-DOS2019-LUCID.csv
+10t-10n-DOS2019-LUCID-binary.h5 (binary classification)
+10t-10n-DOS2019-LUCID-binary.csv (binary classification)
+
+10t-10n-DOS2019-LUCID-multi.h5 (multi-class classification)
+10t-10n-DOS2019-LUCID-multi.csv (multi-class classification)
 ```
 
 Example log summary:
