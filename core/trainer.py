@@ -122,7 +122,7 @@ def run_training(args, output_folder):
             best_model_path + ".csv",
             model_name,
             metrics,
-            best_hyperparams.values,  # <-- 여기에 주목
+            best_hyperparams.values,
             glob.glob(dataset_folder + "/*-val.hdf5")[0]
         )
 
