@@ -15,7 +15,9 @@
 # limitations under the License.
 
 import glob
+import numpy as np
 from sklearn.metrics import f1_score, accuracy_score
+from keras.utils import to_categorical
 from keras_tuner import RandomSearch
 from model.builder import model_builder
 from utils.path_utils import get_model_basename, get_model_path
@@ -55,6 +57,8 @@ def run_training(args, output_folder):
         args (argparse.Namespace): Parsed CLI arguments
         output_folder (str): Folder path where models and logs will be saved
     """
+    label_mode = args.label_mode # binary or multi
+    
     subfolders = glob.glob(args.train[0] + "/*/")
     if len(subfolders) == 0: 
         subfolders = [args.train[0] + "/"]
@@ -65,7 +69,17 @@ def run_training(args, output_folder):
         dataset_folder = dataset_folder.replace("//", "/") # remove double slashes when needed
         print("\nCurrent dataset folder:", dataset_folder)
 
-        (X_train, Y_train), (X_val, Y_val) = load_and_shuffle_dataset(dataset_folder + "/*-train.hdf5", dataset_folder + "/*-val.hdf5")
+        (X_train, Y_train), (X_val, Y_val) = load_and_shuffle_dataset(
+            dataset_folder + f"/*-{label_mode}-dataset-train.hdf5",
+            dataset_folder + f"/*-{label_mode}-dataset-val.hdf5"
+        )
+    
+        if label_mode == "multi":
+            num_classes = np.max(Y_train) + 1 # Calculate number of classes
+            Y_train = to_categorical(Y_train, num_classes=num_classes)
+            Y_val = to_categorical(Y_val, num_classes=num_classes)
+        else:
+            num_classes = 1 # if binary, output neuron is 1
 
         # Extract hyperparameters from filename
         train_file = glob.glob(dataset_folder + "/*-train.hdf5")[0]
@@ -88,7 +102,12 @@ def run_training(args, output_folder):
 
         # Initialize Keras Tuner (RandomSearch)
         tuner = RandomSearch(
-            hypermodel=lambda hp: model_builder(hp, input_shape=X_train.shape[1:]),  # hp
+            hypermodel=lambda hp: model_builder(
+                hp, 
+                input_shape=X_train.shape[1:], 
+                label_mode=label_mode, 
+                num_classes=num_classes
+            ), # hp: hyperparameter
             objective='val_accuracy',  # Optimize for best validation accuracy
             max_trials=10,  # Try 10 different hyperparameter sets
             executions_per_trial=1,  # Train once per set
