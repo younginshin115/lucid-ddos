@@ -5,9 +5,23 @@ from tensorflow.keras.optimizers import Adam
 import tensorflow.keras.backend as K
 from model.regularizer import get_regularizer
 
-def Conv2DModel(model_name, input_shape, kernel_col, kernels=64, kernel_rows=3, regularization=None, dropout=None):
+def Conv2DModel(model_name, input_shape, kernel_col, kernels=64, kernel_rows=3,
+                regularization=None, dropout=None, num_classes=1):
     """
-    Build a simple Conv2D model for binary classification.
+    Build a simple Conv2D model for binary or multi-class classification.
+
+    Args:
+        model_name (str): Name of the model.
+        input_shape (tuple): Shape of the input data.
+        kernel_col (int): Kernel width.
+        kernels (int): Number of filters.
+        kernel_rows (int): Kernel height.
+        regularization (str or None): Type of regularization to apply ("l1", "l2", or None).
+        dropout (float or None): Dropout rate.
+        num_classes (int): Number of output classes (1 for binary classification).
+
+    Returns:
+        keras.Model: A compiled Keras model.
     """
     K.clear_session()
 
@@ -19,7 +33,7 @@ def Conv2DModel(model_name, input_shape, kernel_col, kernels=64, kernel_rows=3, 
         filters=kernels,
         kernel_size=(kernel_rows, kernel_col),
         strides=(1, 1),
-        padding="same",  # <-- 이거 추가해서 사이즈 맞춤
+        padding="same",
         kernel_regularizer=regularizer,
         name='conv0'
     )(inputs)
@@ -30,7 +44,11 @@ def Conv2DModel(model_name, input_shape, kernel_col, kernels=64, kernel_rows=3, 
     x = Activation('relu')(x)
     x = GlobalMaxPooling2D()(x)
     x = Flatten()(x)
-    outputs = Dense(1, activation='sigmoid', name='fc1')(x)
+
+    if num_classes == 1:
+        outputs = Dense(1, activation='sigmoid', name='fc1')(x)
+    else:
+        outputs = Dense(num_classes, activation='softmax', name='fc1')(x)
 
     model = Model(inputs=inputs, outputs=outputs, name=model_name)
     return model
