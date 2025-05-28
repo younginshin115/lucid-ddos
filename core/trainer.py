@@ -26,22 +26,32 @@ from utils.callbacks import create_early_stopping_callback, create_model_checkpo
 from utils.constants import PATIENCE
 from core.helpers import parse_training_filename, load_and_shuffle_dataset
 
-def evaluate_model(model, X_val, Y_val):
+def evaluate_model(model, X_val, Y_val, label_mode="binary"):
     """
     Evaluate the trained model on the validation set.
 
     Args:
         model (keras.Model): Trained Keras model
         X_val (np.ndarray): Validation features
-        Y_val (np.ndarray): Ground-truth validation labels
+        Y_val (np.ndarray): Ground-truth validation labels (one-hot for multi)
+        label_mode (str): "binary" or "multi"
 
     Returns:
         dict: Evaluation results including accuracy, F1 score, and sample count
     """
-    Y_pred = (model.predict(X_val) > 0.5)
-    Y_true = Y_val.reshape((-1, 1))
+    Y_pred_probs = model.predict(X_val)
+
+    if label_mode == "multi":
+        # Convert softmax predictions and one-hot labels to integer class labels
+        Y_pred = Y_pred_probs.argmax(axis=1)
+        Y_true = Y_val.argmax(axis=1)
+    else:
+        # Binary case: apply 0.5 threshold
+        Y_pred = (Y_pred_probs > 0.5).astype(int).reshape((-1,))
+        Y_true = Y_val.reshape((-1,))
+
     return {
-        "f1": f1_score(Y_true, Y_pred),
+        "f1": f1_score(Y_true, Y_pred, average="weighted" if label_mode == "multi" else "binary"),
         "accuracy": accuracy_score(Y_true, Y_pred),
         "samples": Y_pred.shape[0]
     }
@@ -134,7 +144,7 @@ def run_training(args, output_folder):
         best_model.save(best_model_path + ".h5")
 
         # Evaluate the best model
-        metrics = evaluate_model(best_model, X_val, Y_val)
+        metrics = evaluate_model(best_model, X_val, Y_val, label_mode=label_mode)
 
         # Save evaluation metrics
         save_metrics_to_csv(
