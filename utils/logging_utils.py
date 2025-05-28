@@ -28,7 +28,7 @@ def get_timestamp():
     return time.strftime("%Y-%m-%d %H:%M:%S")
 
 
-def save_metrics_to_csv(csv_path, model_name, metrics, used_hyperparams, val_file_path):
+def save_metrics_to_csv(csv_path, model_name, metrics, used_hyperparams, val_file_path, label_mode):
     """
     Save evaluation metrics to a CSV file for record-keeping and analysis.
 
@@ -41,6 +41,7 @@ def save_metrics_to_csv(csv_path, model_name, metrics, used_hyperparams, val_fil
         metrics (dict): Dictionary with keys 'accuracy', 'f1', 'samples'
         used_hyperparams (dict): Dictionary of hyperparameters used for training
         val_file_path (str): Path to the validation dataset used
+        label_mode (str): Label mode, either 'binary' or 'multi'
     """
     with open(csv_path, 'w', newline='') as val_file:
         val_writer = csv.DictWriter(val_file, fieldnames=VAL_HEADER)
@@ -51,5 +52,6 @@ def save_metrics_to_csv(csv_path, model_name, metrics, used_hyperparams, val_fil
             'Accuracy': f"{metrics['accuracy']:05.4f}",
             'F1Score': f"{metrics['f1']:05.4f}",
             'Hyper-parameters': used_hyperparams,
-            'Validation Set': val_file_path
+            'Validation Set': val_file_path,
+            'Label Mode': label_mode
         })

@@ -23,7 +23,7 @@ TRAIN_SIZE = 0.90 # size of the training set wrt the total number of samples
 
 PATIENCE = 10
 DEFAULT_EPOCHS = 1000
-VAL_HEADER = ['Model', 'Samples', 'Accuracy', 'F1Score', 'Hyper-parameters','Validation Set']
+VAL_HEADER = ['Model', 'Samples', 'Accuracy', 'F1Score', 'Hyper-parameters','Validation Set', 'Label Mode']
 PREDICT_HEADER = ['Model', 'Time', 'Packets', 'Samples', 'DDOS%', 'Accuracy', 'F1Score', 'TPR', 'FPR','TNR', 'FNR', 'Source']
 PROTOCOLS = [
     'arp', 'data', 'dns', 'ftp', 'http', 'icmp',

@@ -142,7 +142,8 @@ def run_training(args, output_folder):
             model_name,
             metrics,
             best_hyperparams.values,
-            glob.glob(dataset_folder + "/*-val.hdf5")[0]
+            glob.glob(dataset_folder + "/*-val.hdf5")[0],
+            label_mode=label_mode
         )
 
         print(f"[✓] Best parameters: {best_hyperparams.values}")
