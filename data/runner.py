@@ -19,7 +19,7 @@ from multiprocessing import Process, Manager
 
 from data.parser import parse_labels, parse_labels_multiclass
 from data.process_pcap import process_pcap
-from data.flow_utils import count_flows, balance_dataset, dataset_to_list_of_fragments
+from data.flow_utils import count_flows, balance_dataset_by_under_sampling, dataset_to_list_of_fragments
 from data.split import train_test_split
 from data.data_loader import count_packets_in_dataset
 from utils.preprocessing import normalize_and_padding
@@ -108,7 +108,14 @@ def parse_dataset_from_pcap(args, command_options):
             json.dump(label_map, f, indent=2)
 
     # Count and log flow statistics
-    (total_flows, ddos_flows, benign_flows),  (total_fragments, ddos_fragments, benign_fragments) = count_flows(preprocessed_flows)
+    flow_counts, fragment_counts = count_flows(preprocessed_flows)
+
+    total_flows = sum(flow_counts.values())
+    total_fragments = sum(fragment_counts.values())
+    benign_flows = flow_counts.get(0, 0)
+    ddos_flows = total_flows - benign_flows
+    benign_fragments = fragment_counts.get(0, 0)
+    ddos_fragments = total_fragments - benign_fragments
 
     write_log([
         f"dataset_type:{args.dataset_type[0]}",
@@ -164,7 +171,7 @@ def preprocess_dataset_from_data(args, command_options):
             preprocessed_flows += pickle.load(fh)
 
     # Balance and limit sample count
-    preprocessed_flows, _, _ = balance_dataset(preprocessed_flows, args.samples)
+    preprocessed_flows, _  = balance_dataset_by_under_sampling(preprocessed_flows, args.samples)
 
     if not preprocessed_flows:
         print("Empty dataset after balancing.")

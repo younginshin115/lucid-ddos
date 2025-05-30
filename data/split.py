@@ -23,12 +23,11 @@ validation, and test sets based on desired ratio.
 
 import random
 from utils.constants import TRAIN_SIZE
-from data.flow_utils import count_flows
-
+from collections import defaultdict
 
 def train_test_split(flow_list, train_size=TRAIN_SIZE, shuffle=True):
     """
-    Split a list of flow samples into training and test sets based on fragment count.
+    Stratified split of flow samples into training and test sets based on class label.
 
     Args:
         flow_list (List[Tuple]): The list of flows (5-tuple, dict)
@@ -40,17 +39,20 @@ def train_test_split(flow_list, train_size=TRAIN_SIZE, shuffle=True):
             - train_set (List)
             - test_set (List)
     """
-    test_list = []
-    _, (total_examples, _, _) = count_flows(flow_list)
-    test_examples = total_examples - total_examples * train_size
+    label_to_flows = defaultdict(list)
 
-    if shuffle:
-        random.shuffle(flow_list)
+    # Group flows by label
+    for flow in flow_list:
+        label = flow[1].get('label', 0)
+        label_to_flows[label].append(flow)
 
-    current_test_examples = 0
-    while current_test_examples < test_examples:
-        flow = flow_list.pop(0)
-        test_list.append(flow)
-        current_test_examples += len(flow[1]) - 1  # exclude 'label'
+    train_set, test_set = [], []
 
-    return flow_list, test_list
+    for flows in label_to_flows.values():
+        if shuffle:
+            random.shuffle(flows)
+        split_point = int(len(flows) * train_size)
+        train_set.extend(flows[:split_point])
+        test_set.extend(flows[split_point:])
+
+    return train_set, test_set
