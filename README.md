@@ -27,7 +27,8 @@ lucid_project/
 │   ├── path_utils.py          # Path and folder management helpers
 │   ├── preprocessing.py       # Padding and normalization functions
 │   ├── seed_utils.py          # Random seed configuration
-│   └── prediction_utils.py    # Model loading, metadata parsing, warm-up, etc.
+│   ├── prediction_utils.py    # Model loading, metadata parsing, warm-up, etc.
+│   └── visualization.py       # Functions for plotting and saving label/class distributions
 
 ├── data/                      # Dataset parsing, loading, and preparation
 │   ├── args.py                # Argument parser for dataset preparation
