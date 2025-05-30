@@ -211,8 +211,13 @@ def preprocess_dataset_from_data(args, command_options):
 
     # Compute example counts
     total_examples = len(y_train) + len(y_val) + len(y_test)
-    total_ddos_examples = np.count_nonzero(np.concatenate([y_train, y_val, y_test]))
-    total_benign_examples = total_examples - total_ddos_examples
+    if label_mode == "multi":
+        total_ddos_examples = total_examples - np.count_nonzero(np.concatenate([y_train, y_val, y_test]) == 0)
+        total_benign_examples = total_examples - total_ddos_examples
+    else:
+        total_ddos_examples = np.count_nonzero(np.concatenate([y_train, y_val, y_test]))
+        total_benign_examples = total_examples - total_ddos_examples
+
 
     # Log in detailed format
     write_log([
@@ -287,7 +292,10 @@ def merge_balanced_datasets(args, command_options):
 
     # Count and log final statistics
     total_flows = sum(final_y[split].shape[0] for split in ['train', 'val', 'test'])
-    ddos_flows = sum(np.count_nonzero(final_y[split]) for split in ['train', 'val', 'test'])
+    if label_mode == "multi":
+        ddos_flows = sum(np.count_nonzero(final_y[split] != 0) for split in ['train', 'val', 'test'])
+    else:
+        ddos_flows = sum(np.count_nonzero(final_y[split]) for split in ['train', 'val', 'test'])
     benign_flows = total_flows - ddos_flows
     [train_packets, val_packets, test_packets] = count_packets_in_dataset(
         [final_X['train'], final_X['val'], final_X['test']]
