@@ -15,11 +15,9 @@
 # limitations under the License.
 
 import glob
-import numpy as np
 from sklearn.metrics import (
     accuracy_score, f1_score, precision_score, recall_score, confusion_matrix
 )
-from keras.utils import to_categorical
 from keras_tuner import RandomSearch
 from model.builder import model_builder
 from utils.path_utils import get_model_basename, get_model_path
@@ -86,13 +84,13 @@ def run_training(args, output_folder):
 
         (X_train, Y_train), (X_val, Y_val) = load_and_shuffle_dataset(
             dataset_folder + f"/*-{label_mode}-dataset-train.hdf5",
-            dataset_folder + f"/*-{label_mode}-dataset-val.hdf5"
+            dataset_folder + f"/*-{label_mode}-dataset-val.hdf5",
+            label_mode=label_mode
         )
-    
+
+        # Calculate number of classes
         if label_mode == "multi":
-            num_classes = np.max(Y_train) + 1 # Calculate number of classes
-            Y_train = to_categorical(Y_train, num_classes=num_classes)
-            Y_val = to_categorical(Y_val, num_classes=num_classes)
+            num_classes = Y_train.shape[1]
         else:
             num_classes = 1 # if binary, output neuron is 1
 
