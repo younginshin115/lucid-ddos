@@ -26,6 +26,7 @@ from utils.preprocessing import normalize_and_padding
 from utils.minmax_utils import static_min_max
 from utils.constants import MAX_FLOW_LEN, TIME_WINDOW, TRAIN_SIZE
 from utils.logging_utils import write_log
+from utils.visualization import plot_label_distribution
 
 def parse_dataset_from_pcap(args, command_options):
     """
@@ -106,6 +107,15 @@ def parse_dataset_from_pcap(args, command_options):
         import json
         with open(output_file + '-labelmap.json', 'w') as f:
             json.dump(label_map, f, indent=2)
+
+    # Visualize label distribution
+    _, labels, _ = dataset_to_list_of_fragments(preprocessed_flows)
+    dist_path = output_file + '-labeldist.png'
+    plot_label_distribution(
+        y=labels,
+        title=f"Label Distribution ({label_mode})",
+        save_path=dist_path
+    )
 
     # Count and log flow statistics
     flow_counts, fragment_counts = count_flows(preprocessed_flows)
@@ -205,6 +215,12 @@ def preprocess_dataset_from_data(args, command_options):
             hf.create_dataset('set_x', data=X)
             hf.create_dataset('set_y', data=y)
 
+        # Plot label distribution for each split
+        y_plot = y.argmax(axis=1) if len(y.shape) > 1 else y
+        save_path = os.path.join(output_folder, f"{filename_prefix}-{split}-labeldist.png")
+        plot_label_distribution(y_plot, title=f"Label Distribution ({split})", save_path=save_path)
+
+
     # Log final dataset summary
     # Count packets per split
     train_packets, val_packets, test_packets = count_packets_in_dataset([norm_X_train, norm_X_val, norm_X_test])
@@ -217,7 +233,6 @@ def preprocess_dataset_from_data(args, command_options):
     else:
         total_ddos_examples = np.count_nonzero(np.concatenate([y_train, y_val, y_test]))
         total_benign_examples = total_examples - total_ddos_examples
-
 
     # Log in detailed format
     write_log([
@@ -285,11 +300,23 @@ def merge_balanced_datasets(args, command_options):
 
     # Save the final merged datasets
     for split in ['train', 'val', 'test']:
-        filename = f"{output_prefix}-{label_mode}-dataset-balanced-{split}.hdf5"
-        with h5py.File(os.path.join(output_folder, filename), 'w') as hf:
+        hdf5_filename = f"{output_prefix}-{label_mode}-dataset-balanced-{split}.hdf5"
+        file_path = os.path.join(output_folder, hdf5_filename)
+
+        # Save HDF5
+        with h5py.File(file_path, 'w') as hf:
             hf.create_dataset('set_x', data=final_X[split])
             hf.create_dataset('set_y', data=final_y[split])
 
+        # Plot and save label distribution
+        y = final_y[split]
+        y_plot = y.argmax(axis=1) if len(y.shape) > 1 else y
+        dist_path = f"{output_prefix}-{label_mode}-dataset-balanced-{split}-labeldist.png"
+        plot_label_distribution(
+            y=y_plot,
+            title=f"Label Distribution (merged {split})",
+            save_path=dist_path
+        )
     # Count and log final statistics
     total_flows = sum(final_y[split].shape[0] for split in ['train', 'val', 'test'])
     if label_mode == "multi":
