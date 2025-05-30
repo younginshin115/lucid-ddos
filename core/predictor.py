@@ -2,7 +2,8 @@ import os
 import csv
 import glob
 import time
-
+import numpy as np
+from tensorflow.keras.utils import to_categorical
 from core.prediction_runner import run_prediction_loop_preprocessed
 from data.data_loader import load_dataset
 from utils.constants import PREDICT_HEADER
@@ -72,6 +73,10 @@ def run_batch_prediction(args, output_folder):
             # Load test dataset and count packets
             
             X, Y_true = load_dataset(dataset_file)
+            
+            if args.label_mode == "multi":
+                num_classes = np.max(Y_true) + 1
+                Y_true = to_categorical(Y_true, num_classes=num_classes)
 
             for _ in range(iterations):
                 run_prediction_loop_preprocessed(
@@ -80,7 +85,8 @@ def run_batch_prediction(args, output_folder):
                     model=model,
                     model_name=model_name_string,
                     source_name=os.path.basename(dataset_file),
-                    writer=predict_writer
+                    writer=predict_writer,
+                    label_mode=args.label_mode
                 )
             predict_file.flush()
 
