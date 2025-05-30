@@ -60,13 +60,14 @@ def run_prediction_loop(
 
     # Write results
     report_results(
-        Y_true,
-        Y_pred,
-        packets,
-        model_name,
-        source_name,
-        prediction_time,
-        writer
+        Y_true=Y_true,
+        Y_pred=Y_pred,
+        packets=packets,
+        model_name=model_name,
+        data_source=source_name,
+        prediction_time=prediction_time,
+        writer=writer,
+        label_mode=label_mode
     )
 
 def run_prediction_loop_preprocessed(
@@ -114,11 +115,12 @@ def run_prediction_loop_preprocessed(
 
     # Write results
     report_results(
-        Y_true,
-        Y_pred,
-        packets,
-        model_name,
-        source_name,
-        prediction_time,
-        writer
+        Y_true=Y_true,
+        Y_pred=Y_pred,
+        packets=packets,
+        model_name=model_name,
+        data_source=source_name,
+        prediction_time=prediction_time,
+        writer=writer,
+        label_mode=label_mode
     )
