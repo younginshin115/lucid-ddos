@@ -15,7 +15,8 @@ def run_prediction_loop(
     maxs,
     max_flow_len,
     writer,
-    packets=None
+    packets=None,
+    label_mode="binary"
 ):
     """
     Normalize input, perform model inference, and log results.
@@ -31,6 +32,7 @@ def run_prediction_loop(
         max_flow_len (int): Flow padding length
         writer (csv.DictWriter): Writer for logging output
         packets (int, optional): Total number of packets in input. If None, auto-calculated.
+        label_mode (str): "binary" or "multi" classification mode
     """
     # Normalize and shape the input
     X = np.array(normalize_and_padding(X_raw, mins, maxs, max_flow_len))
@@ -42,13 +44,19 @@ def run_prediction_loop(
 
     # Model prediction
     pt0 = time.time()
-    Y_pred = np.squeeze(model.predict(X, batch_size=2048) > 0.5, axis=1)
+    Y_pred_probs = model.predict(X, batch_size=2048)
     pt1 = time.time()
     prediction_time = pt1 - pt0
 
     # Format labels if available
-    if Y_true is not None:
-        Y_true = np.squeeze(Y_true)
+    if label_mode == "multi":
+        Y_pred = Y_pred_probs.argmax(axis=1)
+        if Y_true is not None:
+            Y_true = Y_true.argmax(axis=1)
+    else:
+        Y_pred = np.squeeze(Y_pred_probs > 0.5, axis=1)
+        if Y_true is not None:
+            Y_true = np.squeeze(Y_true)
 
     # Write results
     report_results(
@@ -68,7 +76,8 @@ def run_prediction_loop_preprocessed(
     model_name,
     source_name,
     writer,
-    packets=None
+    packets=None,
+    label_mode="binary"
 ):
     """
     Perform prediction on preprocessed (normalized + padded) dataset.
@@ -81,6 +90,7 @@ def run_prediction_loop_preprocessed(
         source_name (str): Name of the dataset file
         writer (csv.DictWriter): CSV writer to log results
         packets (int, optional): Total packet count for evaluation
+        label_mode (str): "binary" or "multi" classification mode
     """
     # Count packets if not provided
     if packets is None:
@@ -88,13 +98,19 @@ def run_prediction_loop_preprocessed(
 
     # Run inference
     pt0 = time.time()
-    Y_pred = np.squeeze(model.predict(X, batch_size=2048) > 0.5, axis=1)
+    Y_pred_probs = model.predict(X, batch_size=2048)
     pt1 = time.time()
     prediction_time = pt1 - pt0
-
+    
     # Format labels
-    if Y_true is not None:
-        Y_true = np.squeeze(Y_true)
+    if label_mode == "multi":
+        Y_pred = Y_pred_probs.argmax(axis=1)
+        if Y_true is not None:
+            Y_true = Y_true.argmax(axis=1)
+    else:
+        Y_pred = np.squeeze(Y_pred_probs > 0.5, axis=1)
+        if Y_true is not None:
+            Y_true = np.squeeze(Y_true)
 
     # Write results
     report_results(

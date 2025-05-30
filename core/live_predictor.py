@@ -73,7 +73,8 @@ def run_live_prediction(args, output_folder: str):
                 mins=mins,
                 maxs=maxs,
                 max_flow_len=max_flow_len,
-                writer=predict_writer
+                writer=predict_writer,
+                label_mode=args.label_mode
             )
 
             predict_file.flush()
