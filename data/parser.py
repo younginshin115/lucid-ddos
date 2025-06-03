@@ -170,3 +170,78 @@ def parse_packet(pkt):
     except AttributeError:
         # Packet does not contain required fields (e.g., not IPv4)
         return None
+
+def infer_label_by_ip(src_ip, dst_ip, dataset='CIC-DDoS-2019'):
+    """
+    Infers the attack type label based on source and destination IP addresses.
+
+    This function uses a predefined mapping of attacker and victim IP addresses
+    for different datasets (e.g., CIC-IDS-2017/2018/2019) to determine whether a flow
+    belongs to a known attack type or is benign.
+
+    Args:
+        src_ip (str): Source IP address of the packet or flow.
+        dst_ip (str): Destination IP address of the packet or flow.
+        dataset (str): Dataset name used to look up IP-based attack rules.
+                       Default is 'CIC-DDoS-2019'.
+
+    Returns:
+        str: The attack type name if the IP pair matches a known attack,
+             otherwise 'Benign'.
+    """
+    from data.ddos_specs import DDOS_ATTACK_SPECS_EXTENDED  # IP-based rules for multiple datasets
+
+    # Return 'Benign' if the dataset has no known attack definitions
+    if dataset not in DDOS_ATTACK_SPECS_EXTENDED:
+        return 'Benign'
+
+    # Iterate through all attack types defined for this dataset
+    for attack_type, spec in DDOS_ATTACK_SPECS_EXTENDED[dataset].items():
+        # Match on known attacker and victim IP combinations
+        if src_ip in spec['attackers'] and dst_ip in spec['victims']:
+            return attack_type
+
+    # No match found: considered benign
+    return 'Benign'
+
+def parse_labels_multiclass(dataset_type):
+    """
+    Construct a multi-class label dictionary for attacker-victim flows.
+
+    This function uses the extended DDoS attack specifications to generate
+    a mapping from (src_ip, dst_ip) tuples to integer class labels.
+    It also returns a mapping from class name to class index for reference.
+
+    Args:
+        dataset_type (str): Dataset name (e.g., 'CIC-DDoS-2019') used to look up
+                            attacker-victim flow definitions.
+
+    Returns:
+        tuple:
+            - dict: Mapping of (src_ip, dst_ip) → integer label index
+            - dict: Mapping of attack type (str) → label index (int)
+    """
+    from data.ddos_specs import DDOS_ATTACK_SPECS_EXTENDED
+
+    output_dict = {}   # Mapping from (attacker, victim) pair to label index
+    label_map = {}     # Mapping from attack type string to unique label index
+    label_counter = 1  # Start from 1; label 0 is typically reserved for benign traffic
+
+    specs = DDOS_ATTACK_SPECS_EXTENDED.get(dataset_type, {})
+    
+    # Iterate over all defined attack types for the given dataset
+    for attack_type, spec in specs.items():
+        # Assign a new integer index to this attack type if not already assigned
+        if attack_type not in label_map:
+            label_map[attack_type] = label_counter
+            label_counter += 1
+
+        # For each attacker-victim IP pair, assign the corresponding label
+        for attacker in spec['attackers']:
+            for victim in spec['victims']:
+                key_fwd = (attacker, victim)
+                key_bwd = (victim, attacker)
+                output_dict[key_fwd] = label_map[attack_type]
+                output_dict[key_bwd] = label_map[attack_type]
+
+    return output_dict, label_map

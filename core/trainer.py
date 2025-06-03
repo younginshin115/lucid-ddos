@@ -15,33 +15,48 @@
 # limitations under the License.
 
 import glob
-from sklearn.metrics import f1_score, accuracy_score
+from sklearn.metrics import (
+    accuracy_score, f1_score, precision_score, recall_score, confusion_matrix
+)
 from keras_tuner import RandomSearch
 from model.builder import model_builder
 from utils.path_utils import get_model_basename, get_model_path
-from utils.logging_utils import save_metrics_to_csv
+from utils.logging_utils import save_evaluation_artifacts
 from utils.callbacks import create_early_stopping_callback, create_model_checkpoint_callback, create_tensorboard_callback
 from utils.constants import PATIENCE
 from core.helpers import parse_training_filename, load_and_shuffle_dataset
 
-def evaluate_model(model, X_val, Y_val):
+def evaluate_model(model, X_val, Y_val, label_mode="binary"):
     """
     Evaluate the trained model on the validation set.
 
     Args:
         model (keras.Model): Trained Keras model
         X_val (np.ndarray): Validation features
-        Y_val (np.ndarray): Ground-truth validation labels
+        Y_val (np.ndarray): Ground-truth validation labels (one-hot for multi)
+        label_mode (str): "binary" or "multi"
 
     Returns:
-        dict: Evaluation results including accuracy, F1 score, and sample count
+        dict: Evaluation results including accuracy, F1/F1_weighted, precision, recall, confusion matrix
     """
-    Y_pred = (model.predict(X_val) > 0.5)
-    Y_true = Y_val.reshape((-1, 1))
+    Y_pred_probs = model.predict(X_val)
+
+    if label_mode == "multi":
+        Y_pred = Y_pred_probs.argmax(axis=1)
+        Y_true = Y_val.argmax(axis=1)
+        average_type = "weighted"
+    else:
+        Y_pred = (Y_pred_probs > 0.5).astype(int).reshape((-1,))
+        Y_true = Y_val.reshape((-1,))
+        average_type = "binary"
+
     return {
-        "f1": f1_score(Y_true, Y_pred),
         "accuracy": accuracy_score(Y_true, Y_pred),
-        "samples": Y_pred.shape[0]
+        "f1": f1_score(Y_true, Y_pred, average=average_type),
+        "precision": precision_score(Y_true, Y_pred, average=average_type, zero_division=0),
+        "recall": recall_score(Y_true, Y_pred, average=average_type, zero_division=0),
+        "confusion_matrix": confusion_matrix(Y_true, Y_pred).tolist(),  # convert to JSON serializable format
+        "samples": len(Y_true)
     }
 
 def run_training(args, output_folder):
@@ -55,6 +70,8 @@ def run_training(args, output_folder):
         args (argparse.Namespace): Parsed CLI arguments
         output_folder (str): Folder path where models and logs will be saved
     """
+    label_mode = args.label_mode # binary or multi
+    
     subfolders = glob.glob(args.train[0] + "/*/")
     if len(subfolders) == 0: 
         subfolders = [args.train[0] + "/"]
@@ -65,7 +82,17 @@ def run_training(args, output_folder):
         dataset_folder = dataset_folder.replace("//", "/") # remove double slashes when needed
         print("\nCurrent dataset folder:", dataset_folder)
 
-        (X_train, Y_train), (X_val, Y_val) = load_and_shuffle_dataset(dataset_folder + "/*-train.hdf5", dataset_folder + "/*-val.hdf5")
+        (X_train, Y_train), (X_val, Y_val) = load_and_shuffle_dataset(
+            dataset_folder + f"/*-{label_mode}-dataset-train.hdf5",
+            dataset_folder + f"/*-{label_mode}-dataset-val.hdf5",
+            label_mode=label_mode
+        )
+
+        # Calculate number of classes
+        if label_mode == "multi":
+            num_classes = Y_train.shape[1]
+        else:
+            num_classes = 1 # if binary, output neuron is 1
 
         # Extract hyperparameters from filename
         train_file = glob.glob(dataset_folder + "/*-train.hdf5")[0]
@@ -75,7 +102,7 @@ def run_training(args, output_folder):
 
         # Build model
         model_name = f"{dataset_name}-LUCID"
-        model_basename = get_model_basename(time_window, max_flow_len, model_name)
+        model_basename = get_model_basename(time_window, max_flow_len, model_name, label_mode)
         best_model_path = get_model_path(output_folder, model_basename)
                 
         # Create callbacks
@@ -88,7 +115,12 @@ def run_training(args, output_folder):
 
         # Initialize Keras Tuner (RandomSearch)
         tuner = RandomSearch(
-            hypermodel=lambda hp: model_builder(hp, input_shape=X_train.shape[1:]),  # hp
+            hypermodel=lambda hp: model_builder(
+                hp, 
+                input_shape=X_train.shape[1:], 
+                label_mode=label_mode, 
+                num_classes=num_classes
+            ), # hp: hyperparameter
             objective='val_accuracy',  # Optimize for best validation accuracy
             max_trials=10,  # Try 10 different hyperparameter sets
             executions_per_trial=1,  # Train once per set
@@ -115,16 +147,19 @@ def run_training(args, output_folder):
         best_model.save(best_model_path + ".h5")
 
         # Evaluate the best model
-        metrics = evaluate_model(best_model, X_val, Y_val)
+        metrics = evaluate_model(best_model, X_val, Y_val, label_mode=label_mode)
 
         # Save evaluation metrics
-        save_metrics_to_csv(
-            best_model_path + ".csv",
-            model_name,
-            metrics,
-            best_hyperparams.values,  # <-- 여기에 주목
-            glob.glob(dataset_folder + "/*-val.hdf5")[0]
+        save_evaluation_artifacts(
+            base_path=best_model_path,
+            model_name=model_name,
+            metrics=metrics,
+            used_hyperparams=best_hyperparams.values,
+            val_file_path=glob.glob(dataset_folder + "/*-val.hdf5")[0],
+            label_mode=label_mode,
+            class_labels=list(range(num_classes)) if label_mode == "multi" else [0, 1]
         )
+
 
         print(f"[✓] Best parameters: {best_hyperparams.values}")
         print(f"[✓] Saved model to: {best_model_path}.h5")

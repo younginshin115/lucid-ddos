@@ -75,6 +75,9 @@ def get_lucid_cnn_parser():
     parser.add_argument('-y', '--dataset_type', default=None, type=str,
                         help='Dataset type for label parsing (e.g., DOS2017, SYN2020)')
 
+    parser.add_argument('-l', '--label_mode', type=str, choices=['binary', 'multi'], default='binary',
+                        help="Labeling scheme to use: 'binary' for benign vs. attack, 'multi' for multi-class labels")
+
     parser.add_argument('--version', action='version', version='LUCID CNN v1.0')
 
     return parser

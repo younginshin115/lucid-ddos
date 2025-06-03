@@ -97,7 +97,6 @@ def store_packet(pf, temp_dict, start_time_window, max_flow_len):
                 temp_dict[pf.id_bwd][start_time_window] = np.array([pf.features_list])
     return temp_dict
 
-
 def apply_labels(flows, labelled_flows, labels, traffic_type):
     """
     Assign labels to each flow and store the result if it matches the type.
@@ -108,19 +107,21 @@ def apply_labels(flows, labelled_flows, labels, traffic_type):
         labels (dict): label mapping
         traffic_type (str): 'all', 'ddos', 'benign'
     """
+    label_counter = {}
+
     for five_tuple, flow in flows.items():
-        if labels is not None:
-            short_key = (five_tuple[0], five_tuple[2])  # src_ip, dst_ip
-            flow['label'] = labels.get(short_key, 0)
+        short_key = (five_tuple[0], five_tuple[2])  # src_ip, dst_ip
+        label = labels.get(short_key, 0)
+        flow['label'] = label
 
-        for flow_key, packet_list in flow.items():
-            if flow_key != 'label':
-                amin = np.amin(packet_list, axis=0)[0]
-                packet_list[:, 0] -= amin
+        # Count label usage
+        label_counter[label] = label_counter.get(label, 0) + 1
 
-        if traffic_type == 'ddos' and flow['label'] == 0:
+        if traffic_type == 'ddos' and label == 0:
             continue
-        elif traffic_type == 'benign' and flow['label'] > 0:
+        elif traffic_type == 'benign' and label > 0:
             continue
-        else:
-            labelled_flows.append((five_tuple, flow))
+
+        labelled_flows.append((five_tuple, flow))
+
+    print("[Debug] Label distribution in current file:", label_counter)

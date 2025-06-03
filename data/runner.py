@@ -17,15 +17,16 @@ import numpy as np
 import os, glob, time, pickle, h5py
 from multiprocessing import Process, Manager
 
-from data.parser import parse_labels
+from data.parser import parse_labels, parse_labels_multiclass
 from data.process_pcap import process_pcap
-from data.flow_utils import count_flows, balance_dataset, dataset_to_list_of_fragments
+from data.flow_utils import count_flows, balance_dataset_by_under_sampling, dataset_to_list_of_fragments
 from data.split import train_test_split
 from data.data_loader import count_packets_in_dataset
 from utils.preprocessing import normalize_and_padding
 from utils.minmax_utils import static_min_max
 from utils.constants import MAX_FLOW_LEN, TIME_WINDOW, TRAIN_SIZE
-from utils.logging_utils import write_log, get_timestamp
+from utils.logging_utils import write_log
+from utils.visualization import plot_label_distribution
 
 def parse_dataset_from_pcap(args, command_options):
     """
@@ -48,7 +49,14 @@ def parse_dataset_from_pcap(args, command_options):
     filelist = glob.glob(args.dataset_folder[0]+ '/*.pcap')
 
     # Load label definitions
-    in_labels = parse_labels(dataset_type=args.dataset_type[0], label=args.label)
+    label_mode = args.label_mode
+    if label_mode == 'binary':
+        in_labels = parse_labels(dataset_type=args.dataset_type[0], label=args.label)
+        label_map = None  # not used
+    elif label_mode == 'multi':
+        in_labels, label_map = parse_labels_multiclass(dataset_type=args.dataset_type[0])
+    else:
+        raise ValueError("Invalid label_mode. Must be 'binary' or 'multi'.")
 
     # Determine preprocessing parameters
     max_flow_len = int(args.packets_per_flow[0]) if args.packets_per_flow else MAX_FLOW_LEN
@@ -87,14 +95,37 @@ def parse_dataset_from_pcap(args, command_options):
         preprocessed_flows += list(results)
 
     # Save flows as .data
-    filename = f"{int(time_window)}t-{max_flow_len}n-{dataset_id}-preprocess"
+    filename = f"{int(time_window)}t-{max_flow_len}n-{dataset_id}-{label_mode}-preprocess"
+    
     output_file = os.path.join(output_folder, filename).replace("//", "/")
 
     with open(output_file + '.data', 'wb') as filehandle:
         pickle.dump(preprocessed_flows, filehandle)
 
+    # Save label map if multi-class mode
+    if args.label_mode == 'multi':
+        import json
+        with open(output_file + '-labelmap.json', 'w') as f:
+            json.dump(label_map, f, indent=2)
+
+    # Visualize label distribution
+    _, labels, _ = dataset_to_list_of_fragments(preprocessed_flows)
+    dist_path = output_file + '-labeldist.png'
+    plot_label_distribution(
+        y=labels,
+        title=f"Label Distribution ({label_mode})",
+        save_path=dist_path
+    )
+
     # Count and log flow statistics
-    (total_flows, ddos_flows, benign_flows),  (total_fragments, ddos_fragments, benign_fragments) = count_flows(preprocessed_flows)
+    flow_counts, fragment_counts = count_flows(preprocessed_flows)
+
+    total_flows = sum(flow_counts.values())
+    total_fragments = sum(fragment_counts.values())
+    benign_flows = flow_counts.get(0, 0)
+    ddos_flows = total_flows - benign_flows
+    benign_fragments = fragment_counts.get(0, 0)
+    ddos_fragments = total_fragments - benign_fragments
 
     write_log([
         f"dataset_type:{args.dataset_type[0]}",
@@ -115,9 +146,12 @@ def preprocess_dataset_from_data(args, command_options):
         args (argparse.Namespace): Parsed CLI arguments
         command_options (str): Full command string used, for logging purposes
     """
+    # Get label mode from args or use default
+    label_mode = args.label_mode if hasattr(args, 'label_mode') else 'binary'
+
     # Determine .data files and output folder
     if args.preprocess_folder:
-        filelist = glob.glob(args.preprocess_folder[0] + '/*.data')
+        filelist = glob.glob(os.path.join(args.preprocess_folder[0], f"*-{label_mode}-preprocess.data"))
         output_folder = args.output_folder[0] if args.output_folder else args.preprocess_folder[0]
     else:
         filelist = args.preprocess_file
@@ -147,7 +181,7 @@ def preprocess_dataset_from_data(args, command_options):
             preprocessed_flows += pickle.load(fh)
 
     # Balance and limit sample count
-    preprocessed_flows, _, _ = balance_dataset(preprocessed_flows, args.samples)
+    preprocessed_flows, _  = balance_dataset_by_under_sampling(preprocessed_flows, args.samples)
 
     if not preprocessed_flows:
         print("Empty dataset after balancing.")
@@ -170,12 +204,22 @@ def preprocess_dataset_from_data(args, command_options):
 
     y_train, y_val, y_test = np.array(y_train), np.array(y_val), np.array(y_test)
 
+    # Get label mode from args or use default
+    label_mode = args.label_mode if hasattr(args, 'label_mode') else 'binary'
+
     # Save as HDF5
-    filename_prefix = f"{time_window}t-{max_flow_len}n-{dataset_id}-dataset"
+    filename_prefix = f"{time_window}t-{max_flow_len}n-{dataset_id}-{label_mode}-dataset"
+    
     for split, X, y in zip(["train", "val", "test"], [norm_X_train, norm_X_val, norm_X_test], [y_train, y_val, y_test]):
         with h5py.File(os.path.join(output_folder, f"{filename_prefix}-{split}.hdf5"), 'w') as hf:
             hf.create_dataset('set_x', data=X)
             hf.create_dataset('set_y', data=y)
+
+        # Plot label distribution for each split
+        y_plot = y.argmax(axis=1) if len(y.shape) > 1 else y
+        save_path = os.path.join(output_folder, f"{filename_prefix}-{split}-labeldist.png")
+        plot_label_distribution(y_plot, title=f"Label Distribution ({split})", save_path=save_path)
+
 
     # Log final dataset summary
     # Count packets per split
@@ -183,8 +227,12 @@ def preprocess_dataset_from_data(args, command_options):
 
     # Compute example counts
     total_examples = len(y_train) + len(y_val) + len(y_test)
-    total_ddos_examples = np.count_nonzero(np.concatenate([y_train, y_val, y_test]))
-    total_benign_examples = total_examples - total_ddos_examples
+    if label_mode == "multi":
+        total_ddos_examples = total_examples - np.count_nonzero(np.concatenate([y_train, y_val, y_test]) == 0)
+        total_benign_examples = total_examples - total_ddos_examples
+    else:
+        total_ddos_examples = np.count_nonzero(np.concatenate([y_train, y_val, y_test]))
+        total_benign_examples = total_examples - total_ddos_examples
 
     # Log in detailed format
     write_log([
@@ -204,12 +252,15 @@ def merge_balanced_datasets(args, command_options):
         args (argparse.Namespace): Parsed CLI arguments
         command_options (str): Full command string used, for logging purposes
     """
-    output_folder = args.output_folder[0] if args.output_folder else args.balance_folder[0]
 
-    # Collect all dataset files
+    output_folder = args.output_folder[0] if args.output_folder else args.balance_folder[0]
+    label_mode = args.label_mode if hasattr(args, 'label_mode') else 'binary'
+
+    # Collect all dataset files matching label_mode
     datasets = []
     for folder in args.balance_folder:
-        datasets += glob.glob(os.path.join(folder, '*.hdf5'))
+        pattern = f"*-{label_mode}-dataset-*.hdf5"
+        datasets += glob.glob(os.path.join(folder, pattern))
 
     train_files, val_files, test_files = {}, {}, {}
     min_train, min_val, min_test = float('inf'), float('inf'), float('inf')
@@ -220,26 +271,21 @@ def merge_balanced_datasets(args, command_options):
         filename = os.path.basename(file)
         with h5py.File(file, 'r') as f:
             X, Y = np.array(f["set_x"][:]), np.array(f["set_y"][:])
+
+        base_prefix = filename.split(f'-{label_mode}-dataset')[0]
+        output_prefix = output_prefix or base_prefix
+
+        if base_prefix != output_prefix:
+            print("Inconsistent datasets!"); exit()
+
         if 'train' in filename:
-            key = filename.split('dataset')[0] + 'dataset-balanced-train.hdf5'
-            output_prefix = output_prefix or filename.split('IDS')[0].strip()
-            if filename.split('IDS')[0].strip() != output_prefix:
-                print("Inconsistent datasets!"); exit()
-            train_files[key] = (X, Y)
+            train_files[filename] = (X, Y)
             min_train = min(min_train, X.shape[0])
         elif 'val' in filename:
-            key = filename.split('dataset')[0] + 'dataset-balanced-val.hdf5'
-            output_prefix = output_prefix or filename.split('IDS')[0].strip()
-            if filename.split('IDS')[0].strip() != output_prefix:
-                print("Inconsistent datasets!"); exit()
-            val_files[key] = (X, Y)
+            val_files[filename] = (X, Y)
             min_val = min(min_val, X.shape[0])
         elif 'test' in filename:
-            key = filename.split('dataset')[0] + 'dataset-balanced-test.hdf5'
-            output_prefix = output_prefix or filename.split('IDS')[0].strip()
-            if filename.split('IDS')[0].strip() != output_prefix:
-                print("Inconsistent datasets!"); exit()
-            test_files[key] = (X, Y)
+            test_files[filename] = (X, Y)
             min_test = min(min_test, X.shape[0])
 
     final_X, final_y = {'train': None, 'val': None, 'test': None}, {'train': None, 'val': None, 'test': None}
@@ -254,19 +300,34 @@ def merge_balanced_datasets(args, command_options):
 
     # Save the final merged datasets
     for split in ['train', 'val', 'test']:
-        filename = f"{output_prefix}IDS201X-dataset-balanced-{split}.hdf5"
-        with h5py.File(os.path.join(output_folder, filename), 'w') as hf:
+        hdf5_filename = f"{output_prefix}-{label_mode}-dataset-balanced-{split}.hdf5"
+        file_path = os.path.join(output_folder, hdf5_filename)
+
+        # Save HDF5
+        with h5py.File(file_path, 'w') as hf:
             hf.create_dataset('set_x', data=final_X[split])
             hf.create_dataset('set_y', data=final_y[split])
 
+        # Plot and save label distribution
+        y = final_y[split]
+        y_plot = y.argmax(axis=1) if len(y.shape) > 1 else y
+        dist_path = f"{output_prefix}-{label_mode}-dataset-balanced-{split}-labeldist.png"
+        plot_label_distribution(
+            y=y_plot,
+            title=f"Label Distribution (merged {split})",
+            save_path=dist_path
+        )
     # Count and log final statistics
     total_flows = sum(final_y[split].shape[0] for split in ['train', 'val', 'test'])
-    ddos_flows = sum(np.count_nonzero(final_y[split]) for split in ['train', 'val', 'test'])
+    if label_mode == "multi":
+        ddos_flows = sum(np.count_nonzero(final_y[split] != 0) for split in ['train', 'val', 'test'])
+    else:
+        ddos_flows = sum(np.count_nonzero(final_y[split]) for split in ['train', 'val', 'test'])
     benign_flows = total_flows - ddos_flows
     [train_packets, val_packets, test_packets] = count_packets_in_dataset(
         [final_X['train'], final_X['val'], final_X['test']]
     )
-    
+
     write_log([
         f"total_flows (tot,ben,ddos):({total_flows},{benign_flows},{ddos_flows})",
         f"Packets (train,val,test):({train_packets},{val_packets},{test_packets})",

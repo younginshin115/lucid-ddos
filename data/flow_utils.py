@@ -25,75 +25,92 @@ License: Apache 2.0
 """
 
 import random
+from collections import defaultdict
 
 def count_flows(preprocessed_flows):
     """
-    Count the number of total, DDoS, and benign flows and fragments.
+    Count the number of flows and fragments per class.
 
     Args:
         preprocessed_flows (List[Tuple[5-tuple, Dict]]): Flow data with labels
 
     Returns:
         Tuple:
-            - (total_flows, ddos_flows, benign_flows)
-            - (total_fragments, ddos_fragments, benign_fragments)
+            - flow_count_per_class (Dict[int, int])
+            - fragment_count_per_class (Dict[int, int])
     """
-    ddos_flows = 0
-    total_flows = len(preprocessed_flows)
-    ddos_fragments = 0
-    total_fragments = 0
+    flow_count_per_class = defaultdict(int)
+    fragment_count_per_class = defaultdict(int)
 
     for _, flow in preprocessed_flows:
-        flow_fragments = len(flow) - 1
-        total_fragments += flow_fragments
-        if flow.get('label', 0) > 0:
-            ddos_flows += 1
-            ddos_fragments += flow_fragments
+        label = flow.get('label', 0)
+        fragment_count = len(flow) - 1  # exclude metadata
 
-    benign_flows = total_flows - ddos_flows
-    benign_fragments = total_fragments - ddos_fragments
+        flow_count_per_class[label] += 1
+        fragment_count_per_class[label] += fragment_count
 
-    return (total_flows, ddos_flows, benign_flows), (total_fragments, ddos_fragments, benign_fragments)
+    return dict(flow_count_per_class), dict(fragment_count_per_class)
 
-
-def balance_dataset(flows, total_fragments=float('inf')):
+def balance_dataset_by_under_sampling(flows, total_fragments=float("inf")):
     """
-    Balance the dataset by sampling equal numbers of benign and DDoS fragments.
+    Perform class balancing by under-sampling the benign (label 0) class,
+    keeping all attack flows. Optionally limit the total number of fragments.
 
     Args:
-        flows (List[Tuple]): List of flows
-        total_fragments (int): Max number of fragments to keep
+        flows (List[Tuple]): List of flows (5-tuple, dict)
+        total_fragments (int): Max number of total fragments to keep (default: no limit)
 
     Returns:
         Tuple:
-            - balanced flow list
-            - number of benign fragments
-            - number of DDoS fragments
+            - balanced_flows (List[Tuple])
+            - fragment_counter (Dict[int, int]): Actual fragment count per class
     """
-    new_flow_list = []
-    _, (_, ddos_fragments, benign_fragments) = count_flows(flows)
+    # Separate benign and attack flows
+    benign_flows = [f for f in flows if f[1].get("label", 0) == 0]
+    attack_flows = [f for f in flows if f[1].get("label", 0) != 0]
 
-    if ddos_fragments == 0 or benign_fragments == 0:
-        min_fragments = total_fragments
-    else:
-        min_fragments = min(total_fragments / 2, ddos_fragments, benign_fragments)
+    # Count total fragments from attack flows
+    _, frag_count_per_class = count_flows(attack_flows)
+    total_attack_fragments = sum(frag_count_per_class.values())
 
-    random.shuffle(flows)
-    new_benign_fragments = 0
-    new_ddos_fragments = 0
+    # Determine target fragment count for benign
+    target_benign_fragments = min(total_attack_fragments, total_fragments / 2)
 
-    for flow in flows:
+    # Under-sample benign flows
+    random.shuffle(benign_flows)
+    selected_benign_flows = []
+    benign_fragments = 0
+
+    for flow in benign_flows:
         fragment_count = len(flow[1]) - 1
-        label = flow[1].get('label', 0)
-        if label == 0 and new_benign_fragments < min_fragments:
-            new_benign_fragments += fragment_count
-            new_flow_list.append(flow)
-        elif label > 0 and new_ddos_fragments < min_fragments:
-            new_ddos_fragments += fragment_count
-            new_flow_list.append(flow)
+        if benign_fragments + fragment_count > target_benign_fragments:
+            continue
+        selected_benign_flows.append(flow)
+        benign_fragments += fragment_count
 
-    return new_flow_list, new_benign_fragments, new_ddos_fragments
+    # Optionally trim attack fragments if total_fragments is also limiting them
+    if total_fragments < float("inf"):
+        selected_attack_flows = []
+        attack_fragments = 0
+        random.shuffle(attack_flows)
 
+        for flow in attack_flows:
+            fragment_count = len(flow[1]) - 1
+            if attack_fragments + fragment_count > total_fragments / 2:
+                continue
+            selected_attack_flows.append(flow)
+            attack_fragments += fragment_count
+    else:
+        selected_attack_flows = attack_flows
+
+    # Combine and shuffle
+    balanced_flows = selected_benign_flows + selected_attack_flows
+    random.shuffle(balanced_flows)
+
+    # Count the actual number of fragments per class
+    _, balanced_fragment_counter = count_flows(balanced_flows)
+
+    return balanced_flows, balanced_fragment_counter
 
 def dataset_to_list_of_fragments(dataset):
     """

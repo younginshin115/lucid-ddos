@@ -13,36 +13,60 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import pprint
 import numpy as np
 from sklearn.metrics import accuracy_score, f1_score, confusion_matrix
 
-def report_results(Y_true, Y_pred, packets, model_name, data_source, prediction_time, writer):
+def report_results(
+    Y_true,
+    Y_pred,
+    packets,
+    model_name,
+    data_source,
+    prediction_time,
+    writer,
+    label_mode="binary"
+):
     """
-    Calculate metrics and log the prediction results to CSV and stdout.
+    Compute evaluation metrics and write prediction results to stdout and CSV.
+
+    For binary classification, includes TPR/FPR/TNR/FNR metrics.
+    For multi-class classification, calculates weighted F1-score and omits binary-specific metrics.
 
     Args:
-        Y_true (np.array or None): Ground truth labels
-        Y_pred (np.array): Predicted labels (0 or 1)
-        packets (int): Number of packets in the dataset
-        model_name (str): Name of the model
-        data_source (str): Source of the data (file name or interface)
-        prediction_time (float): Time spent on prediction
-        writer (csv.DictWriter): Writer for the output CSV file
+        Y_true (np.ndarray or None): Ground truth labels (1D or one-hot)
+        Y_pred (np.ndarray): Predicted labels (1D)
+        packets (int): Number of packets observed in input
+        model_name (str): Name of the model used for prediction
+        data_source (str): Source name (e.g., filename or interface)
+        prediction_time (float): Inference time in seconds
+        writer (csv.DictWriter): Writer object for output CSV
+        label_mode (str): "binary" or "multi"
     """
-    ddos_rate = '{:04.3f}'.format(np.sum(Y_pred) / Y_pred.shape[0])
+    # For binary classification, compute DDoS rate
+    ddos_rate = '{:04.3f}'.format(np.sum(Y_pred) / Y_pred.shape[0]) if label_mode == "binary" else "N/A"
 
     if Y_true is not None and len(Y_true.shape) > 0:
-        Y_true = Y_true.reshape((Y_true.shape[0], 1))
-        accuracy = accuracy_score(Y_true, Y_pred)
-        f1 = f1_score(Y_true, Y_pred)
-        tn, fp, fn, tp = confusion_matrix(Y_true, Y_pred, labels=[0, 1]).ravel()
+        # Flatten inputs
+        Y_true = Y_true.reshape(-1)
+        Y_pred = Y_pred.reshape(-1)
 
-        tpr = tp / (tp + fn)
-        fpr = fp / (fp + tn)
-        tnr = tn / (tn + fp)
-        fnr = fn / (fn + tp)
+        # Basic metrics
+        accuracy = accuracy_score(Y_true, Y_pred)
+        f1 = f1_score(Y_true, Y_pred, average="binary" if label_mode == "binary" else "weighted")
+
+        if label_mode == "binary":
+            # Extract confusion matrix entries
+            tn, fp, fn, tp = confusion_matrix(Y_true, Y_pred, labels=[0, 1]).ravel()
+
+            # Compute binary classification metrics
+            tpr = tp / (tp + fn) if (tp + fn) > 0 else 0
+            fpr = fp / (fp + tn) if (fp + tn) > 0 else 0
+            tnr = tn / (tn + fp) if (tn + fp) > 0 else 0
+            fnr = fn / (fn + tp) if (fn + tp) > 0 else 0
+        else:
+            # Not applicable for multi-class
+            tpr = fpr = tnr = fnr = "N/A"
 
         row = {
             'Model': model_name,
@@ -52,13 +76,15 @@ def report_results(Y_true, Y_pred, packets, model_name, data_source, prediction_
             'DDOS%': ddos_rate,
             'Accuracy': '{:05.4f}'.format(accuracy),
             'F1Score': '{:05.4f}'.format(f1),
-            'TPR': '{:05.4f}'.format(tpr),
-            'FPR': '{:05.4f}'.format(fpr),
-            'TNR': '{:05.4f}'.format(tnr),
-            'FNR': '{:05.4f}'.format(fnr),
+            'TPR': '{:05.4f}'.format(tpr) if tpr != "N/A" else tpr,
+            'FPR': '{:05.4f}'.format(fpr) if fpr != "N/A" else fpr,
+            'TNR': '{:05.4f}'.format(tnr) if tnr != "N/A" else tnr,
+            'FNR': '{:05.4f}'.format(fnr) if fnr != "N/A" else fnr,
             'Source': data_source
         }
+
     else:
+        # Fallback if Y_true is not provided
         row = {
             'Model': model_name,
             'Time': '{:04.3f}'.format(prediction_time),
@@ -74,5 +100,6 @@ def report_results(Y_true, Y_pred, packets, model_name, data_source, prediction_
             'Source': data_source
         }
 
+    # Output to console and CSV
     pprint.pprint(row, sort_dicts=False)
     writer.writerow(row)

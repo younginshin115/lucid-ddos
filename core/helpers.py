@@ -18,6 +18,7 @@ import os
 from sklearn.utils import shuffle
 from data.data_loader import load_dataset
 from utils.constants import SEED
+from tensorflow.keras.utils import to_categorical
 
 def parse_training_filename(filename):
     """
@@ -37,7 +38,7 @@ def parse_training_filename(filename):
     dataset_name = parts[2]
     return time_window, max_flow_len, dataset_name
 
-def load_and_shuffle_dataset(train_path, val_path):
+def load_and_shuffle_dataset(train_path, val_path, label_mode="binary"):
     """
     Load and shuffle training and validation datasets using a fixed seed.
 
@@ -46,12 +47,19 @@ def load_and_shuffle_dataset(train_path, val_path):
     Args:
         train_path (str): Glob pattern or full path to training HDF5 file
         val_path (str): Glob pattern or full path to validation HDF5 file
-
+        label_mode (str): "binary" or "multi" classification mode
+        
     Returns:
         tuple: ((X_train, Y_train), (X_val, Y_val)) — both shuffled
     """
     X_train, Y_train = load_dataset(train_path)
     X_val, Y_val = load_dataset(val_path)
+    
+    if label_mode == "multi":
+        num_classes = max(Y_train.max(), Y_val.max()) + 1
+        Y_train = to_categorical(Y_train, num_classes=num_classes)
+        Y_val = to_categorical(Y_val, num_classes=num_classes)
+    
     return (
         shuffle(X_train, Y_train, random_state=SEED),
         shuffle(X_val, Y_val, random_state=SEED)
