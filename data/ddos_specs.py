@@ -49,33 +49,40 @@ DDOS_ATTACK_SPECS = {
 
 DDOS_ATTACK_SPECS_EXTENDED = {
     'DOS2017': {
+        'DoS': {
+            'attackers': ['192.168.10.9'],
+            'victims': ['192.168.10.50']
+        },
+        'DDoS': {
+            'attackers': ['192.168.10.6', '192.168.10.7', '192.168.10.10'],
+            'victims': ['192.168.10.50']
+        },
+        'BruteForce': {
+            'attackers': ['192.168.10.9'],
+            'victims': ['192.168.10.50']
+        },
+        'WebAttack': {
+            'attackers': ['192.168.10.9'],
+            'victims': ['192.168.10.50']
+        },
+        'Infiltration': {
+            'attackers': ['192.168.10.9'],
+            'victims': ['192.168.10.8', '192.168.10.25']
+        },
+        'Heartbleed': {
+            'attackers': ['192.168.10.9'],
+            'victims': ['192.168.10.51']
+        },
         'PortScan': {
             'attackers': ['192.168.10.8'],
             'victims': ['192.168.10.50']
         },
-        'DoS_GoldenEye': {
+        'Botnet': {
             'attackers': ['192.168.10.9'],
-            'victims': ['192.168.10.50']
-        },
-        'DoS_Slowloris': {
-            'attackers': ['192.168.10.9'],
-            'victims': ['192.168.10.50']
-        },
-        'DoS_Hulk': {
-            'attackers': ['192.168.10.9'],
-            'victims': ['192.168.10.50']
-        },
-        'DoS_Slowhttptest': {
-            'attackers': ['192.168.10.9'],
-            'victims': ['192.168.10.50']
-        },
-        'DoS_Smack': {
-            'attackers': ['192.168.10.5'],
-            'victims': ['192.168.10.50']
-        },
-        'DoS_Backdoor': {
-            'attackers': ['192.168.10.3'],
-            'victims': ['192.168.10.50']
+            'victims': [
+                '192.168.10.15', '192.168.10.9', '192.168.10.14',
+                '192.168.10.5', '192.168.10.8'
+            ]
         }
     },
 
