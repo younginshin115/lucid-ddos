@@ -49,7 +49,7 @@ DDOS_ATTACK_SPECS = {
 
 DDOS_ATTACK_SPECS_EXTENDED = {
      'DOS2017': {
-        'PortScan': {
+         'PortScan': {
             'attackers': ['192.168.10.8'],
             'victims': ['192.168.10.50']
         },
@@ -69,7 +69,15 @@ DDOS_ATTACK_SPECS_EXTENDED = {
             'attackers': ['192.168.10.9'],
             'victims': ['192.168.10.50']
         },
-     },
+        'DoS_Smack': {
+            'attackers': ['192.168.10.5'],
+            'victims': ['192.168.10.50']
+        },
+        'DoS_Backdoor': {
+            'attackers': ['192.168.10.3'],
+            'victims': ['192.168.10.50']
+        }
+    },
     'DOS2018': {
         'DDoS_LOIC_HTTP': {
             'attackers': ['18.218.115.60'],
