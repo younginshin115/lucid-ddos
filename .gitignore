@@ -180,5 +180,5 @@ output*/
 *.data
 *.hdf5
 *.json
-dataset/
+dataset*/
 logs/
