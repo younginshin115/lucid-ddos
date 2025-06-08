@@ -114,9 +114,6 @@ def run_training(args, output_folder):
         # Build callback list
         callbacks = [tensorboard_callback, early_stopping_callback, model_checkpoint_callback]
 
-        # Get Class Weight
-        class_weight_dict = get_class_weight(Y_train, label_mode=label_mode)
-
         # Initialize Keras Tuner (RandomSearch)
         tuner = RandomSearch(
             hypermodel=lambda hp: model_builder(
@@ -137,8 +134,7 @@ def run_training(args, output_folder):
             X_train, Y_train,
             epochs=args.epochs,
             validation_data=(X_val, Y_val),
-            callbacks=callbacks,
-            class_weight=class_weight_dict
+            callbacks=callbacks
         )
 
         # Retrieve the best model after tuning
