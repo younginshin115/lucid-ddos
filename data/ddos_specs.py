@@ -49,20 +49,8 @@ DDOS_ATTACK_SPECS = {
 
 DDOS_ATTACK_SPECS_EXTENDED = {
      'DOS2017': {
-         'PortScan': {
+        'PortScan': {
             'attackers': ['192.168.10.8'],
-            'victims': ['192.168.10.50']
-        },
-        'DoS_GoldenEye': {
-            'attackers': ['192.168.10.9'],
-            'victims': ['192.168.10.50']
-        },
-        'DoS_Slowloris': {
-            'attackers': ['192.168.10.9'],
-            'victims': ['192.168.10.50']
-        },
-        'DoS_Hulk': {
-            'attackers': ['192.168.10.9'],
             'victims': ['192.168.10.50']
         },
         'DoS_Slowhttptest': {
