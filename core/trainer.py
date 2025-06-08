@@ -25,6 +25,7 @@ from utils.logging_utils import save_evaluation_artifacts
 from utils.callbacks import create_early_stopping_callback, create_model_checkpoint_callback, create_tensorboard_callback
 from utils.constants import PATIENCE
 from core.helpers import parse_training_filename, load_and_shuffle_dataset
+from utils.class_weight_utils import get_class_weight
 
 def evaluate_model(model, X_val, Y_val, label_mode="binary"):
     """
@@ -113,6 +114,9 @@ def run_training(args, output_folder):
         # Build callback list
         callbacks = [tensorboard_callback, early_stopping_callback, model_checkpoint_callback]
 
+        # Get Class Weight
+        class_weight_dict = get_class_weight(Y_train, label_mode=label_mode)
+
         # Initialize Keras Tuner (RandomSearch)
         tuner = RandomSearch(
             hypermodel=lambda hp: model_builder(
@@ -133,7 +137,8 @@ def run_training(args, output_folder):
             X_train, Y_train,
             epochs=args.epochs,
             validation_data=(X_val, Y_val),
-            callbacks=callbacks
+            callbacks=callbacks,
+            class_weight=class_weight_dict
         )
 
         # Retrieve the best model after tuning
