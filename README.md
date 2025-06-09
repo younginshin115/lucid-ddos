@@ -28,7 +28,8 @@ lucid_project/
 │   ├── preprocessing.py       # Padding and normalization functions
 │   ├── seed_utils.py          # Random seed configuration
 │   ├── prediction_utils.py    # Model loading, metadata parsing, warm-up, etc.
-│   └── visualization.py       # Functions for plotting and saving label/class distributions
+│   ├── visualization.py       # Functions for plotting and saving label/class distributions
+│   └── class_weight_utils.py   # Computes class weights to handle imbalance
 
 ├── data/                      # Dataset parsing, loading, and preparation
 │   ├── args.py                # Argument parser for dataset preparation
